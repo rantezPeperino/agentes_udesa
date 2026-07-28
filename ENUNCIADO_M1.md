@@ -16,17 +16,15 @@ estructurada, reintentos sofisticados ni evaluación sobre el mundo de M3.
 - **Uso del cliente LLM provisto.** Usen `mia_agents.llm_client.LLMClient`
   como punto de acceso al modelo. El bucle del agente debe depender del
   protocolo `chat(...)`
-- **Una interfaz y un registro de herramientas.** Cada herramienta es un
-  callable con tipos en la firma (`Annotated` + `Field` de Pydantic para
-  describir cada argumento). El esquema para el LLM se genera con
-  `ToolSchema.from_callable(fn)` — **no escriban JSON Schema a mano**. En
-  `run`, pasen `tools=list(self._schemas.values())`; el `LLMClient` fijo
-  traduce cada `ToolSchema` al formato de Bedrock/Ollama.
+- **Una interfaz y un registro de herramientas.** 
+  Cada herramienta es un callable con tipos en la firma (`Annotated` + `Field` de Pydantic para describir cada argumento). El esquema para el LLM se genera con
+  `ToolSchema.from_callable(fn)` 
+  — **no escriban JSON Schema a mano**. 
+  En `run`, pasen `tools=list(self._schemas.values())`; 
+  el `LLMClient` fijo traduce cada `ToolSchema` al formato de Bedrock/Ollama.
 - **Tres herramientas obligatorias** (detalle abajo).
-- **Un bucle del agente.** Dado un mensaje del usuario, el agente debe
-  razonar, decidir si invoca una herramienta, ejecutarla, observar el
-  resultado y continuar hasta producir una respuesta final. Debe terminar
-  sin bucles infinitos (deben definir un máximo de pasos)
+- **Un bucle del agente.** 
+  Dado un mensaje del usuario, el agente debe razonar, decidir si invoca una herramienta, ejecutarla, observar el resultado y continuar hasta producir una respuesta final. Debe terminar sin bucles infinitos (deben definir un máximo de pasos)
 
   **Condición de parada en M1:** el bucle termina cuando el LLM devuelve
   **texto sin `tool_calls`** (ese texto es `AgentResult.answer`) o cuando

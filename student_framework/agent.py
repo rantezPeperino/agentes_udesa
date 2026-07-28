@@ -11,10 +11,11 @@ Los tests de conformidad en `tests/conformance/test_m1.py` y
 
 from __future__ import annotations
 
+import json
 from typing import Any, Callable
 
 from mia_agents.protocols import LLMClient
-from mia_agents.types import AgentResult, ToolSchema
+from mia_agents.types import AgentResult, AgentStep, ToolSchema
 
 
 class MyAgent:
@@ -48,8 +49,9 @@ class MyAgent:
         self._system = system_prompt
         self._max_iterations = max_iterations
         self._max_history_messages = max_history_messages
-        # TODO (M1): inicializa el estado interno para las herramientas registradas.
-        # TODO (M2): inicializa la estructura de historial conversacional.
+        self._tools: dict[str, Callable[..., str]] = {}
+        self._schemas: dict[str, ToolSchema] = {}
+        self._conversation_history: list[dict[str, Any]] = []
 
     def register_tool(
         self,
@@ -65,7 +67,8 @@ class MyAgent:
         El callable se invoca con kwargs que coinciden con la firma.
         Debe devolver una cadena.
         """
-        raise NotImplementedError("M1: implementa el registro de herramientas")
+        self._tools[schema.name] = tool
+        self._schemas[schema.name] = schema
 
     def run(self, user_message: str) -> AgentResult:
         """Ejecuta el bucle del agente hasta una respuesta final o hasta max_iterations.
@@ -91,7 +94,101 @@ class MyAgent:
         `LLMResponse` y exponlos en `AgentResult.input_tokens` /
         `AgentResult.output_tokens`.
         """
-        raise NotImplementedError("M1: implementa el bucle del agente")
+        self._conversation_history.append({"role": "user", "content": user_message})
+
+        steps: list[AgentStep] = []
+        total_input_tokens = 0
+        total_output_tokens = 0
+
+        for _ in range(self._max_iterations):
+            messages = self._apply_sliding_window()
+
+            response = self._llm.chat(
+                messages=messages,
+                tools=list(self._schemas.values()),
+                system=self._system,
+            )
+
+            if response.input_tokens is not None:
+                total_input_tokens += response.input_tokens
+            if response.output_tokens is not None:
+                total_output_tokens += response.output_tokens
+
+            if not response.tool_calls:
+                self._conversation_history.append({"role": "assistant", "content": response.content})
+                return AgentResult(
+                    answer=response.content or "",
+                    steps=steps,
+                    input_tokens=total_input_tokens if total_input_tokens > 0 else None,
+                    output_tokens=total_output_tokens if total_output_tokens > 0 else None,
+                )
+
+            self._conversation_history.append({"role": "assistant", "content": response.content})
+
+            for tool_call in response.tool_calls:
+                try:
+                    arguments = json.loads(tool_call.arguments)
+                except (json.JSONDecodeError, TypeError):
+                    arguments = {}
+
+                tool_name = tool_call.name
+                tool_func = self._tools.get(tool_name)
+
+                if tool_func is None:
+                    error_msg = f"Herramienta desconocida: {tool_name}"
+                    tool_output = error_msg
+                    step_error = error_msg
+                else:
+                    try:
+                        tool_output = tool_func(**arguments)
+                        step_error = None
+                    except Exception as e:
+                        tool_output = f"Error al ejecutar {tool_name}: {str(e)}"
+                        step_error = str(e)
+
+                self._conversation_history.append({
+                    "role": "tool",
+                    "content": tool_output,
+                    "tool_use_id": tool_call.id,
+                })
+
+                steps.append(AgentStep(
+                    tool_name=tool_name,
+                    tool_input=tool_call.arguments,
+                    tool_output=tool_output,
+                    error=step_error,
+                ))
+
+        return AgentResult(
+            answer="Máximo de iteraciones alcanzado.",
+            steps=steps,
+            input_tokens=total_input_tokens if total_input_tokens > 0 else None,
+            output_tokens=total_output_tokens if total_output_tokens > 0 else None,
+        )
+
+    def _apply_sliding_window(self) -> list[dict[str, Any]]:
+        """Aplica sliding window al historial conversacional.
+
+        Estrategia: mantener último user message (recencia) y descartar
+        mensajes antiguos si supera max_history_messages. System prompt
+        no cuenta en el presupuesto.
+        """
+        if len(self._conversation_history) <= self._max_history_messages:
+            return list(self._conversation_history)
+
+        latest_user_idx = -1
+        for i in range(len(self._conversation_history) - 1, -1, -1):
+            if self._conversation_history[i]["role"] == "user":
+                latest_user_idx = i
+                break
+
+        if latest_user_idx == -1:
+            return list(self._conversation_history[-self._max_history_messages:])
+
+        if latest_user_idx < len(self._conversation_history) - self._max_history_messages:
+            return self._conversation_history[latest_user_idx:]
+
+        return self._conversation_history[-self._max_history_messages:]
 
     def structured_call(
         self,
@@ -120,4 +217,68 @@ class MyAgent:
 
         El M1 deja esto como stub; los tests de M2 verifican el contrato.
         """
-        raise NotImplementedError("M2: implementa salida estructurada con reparación")
+        from mia_agents.tool_schema import final_result_tool_schema, FINAL_RESULT_TOOL_NAME
+
+        final_result_tool = final_result_tool_schema(schema)
+        messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
+
+        for attempt in range(max_repair_attempts + 1):
+            response = self._llm.chat(
+                messages=messages,
+                tools=[final_result_tool],
+                system=self._system,
+            )
+
+            if not response.tool_calls:
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({
+                    "role": "tool",
+                    "content": "No invocaste la herramienta final_result. Debes invocar la herramienta para terminar.",
+                    "tool_use_id": "repair",
+                })
+                if attempt < max_repair_attempts:
+                    continue
+                else:
+                    raise ValueError("El LLM no invocó final_result tras reintentos.")
+
+            tool_call = response.tool_calls[0]
+            if tool_call.name != FINAL_RESULT_TOOL_NAME:
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({
+                    "role": "tool",
+                    "content": f"Debes invocar solo final_result, no {tool_call.name}.",
+                    "tool_use_id": tool_call.id,
+                })
+                if attempt < max_repair_attempts:
+                    continue
+                else:
+                    raise ValueError(f"El LLM invocó {tool_call.name} en lugar de final_result.")
+
+            try:
+                arguments = json.loads(tool_call.arguments)
+            except (json.JSONDecodeError, TypeError) as e:
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({
+                    "role": "tool",
+                    "content": f"Los argumentos no son JSON válido: {str(e)}",
+                    "tool_use_id": tool_call.id,
+                })
+                if attempt < max_repair_attempts:
+                    continue
+                else:
+                    raise
+
+            try:
+                parsed = schema.model_validate(arguments)
+                return parsed
+            except Exception as e:
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({
+                    "role": "tool",
+                    "content": f"Validación fallida: {str(e)}. Reintenta con argumentos válidos.",
+                    "tool_use_id": tool_call.id,
+                })
+                if attempt < max_repair_attempts:
+                    continue
+                else:
+                    raise

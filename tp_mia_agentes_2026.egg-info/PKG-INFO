@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: tp_mia_agentes_2026
+Version: 0.2.0
+Summary: MIA Agentes - TP M1/M2
+Requires-Python: >=3.10
+Requires-Dist: ollama>=0.4.0
+Requires-Dist: boto3>=1.34.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: pytest>=8.0.0
