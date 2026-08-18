@@ -31,6 +31,7 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import Any
 
+import anthropic
 import boto3
 import ollama
 
@@ -511,6 +512,155 @@ class BedrockProvider(_BaseLLMProvider):
         )
 
 
+class AnthropicProvider(_BaseLLMProvider):
+    """Cliente para Claude via la API de Anthropic.
+
+    Variables de entorno:
+      - `ANTHROPIC_API_KEY`: clave de la API.
+      - `ANTHROPIC_MODEL`: nombre del modelo (por defecto `claude-3-5-sonnet-20241022`).
+    """
+
+    def __init__(
+        self,
+        model: str | None = None,
+        api_key: str | None = None,
+        max_tokens: int = 4096,
+    ) -> None:
+        self._api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not self._api_key:
+            raise RuntimeError(
+                "Define ANTHROPIC_API_KEY o pásala como argumento al "
+                "constructor de AnthropicProvider."
+            )
+        self._model = model or os.environ.get("ANTHROPIC_MODEL") or (
+            "claude-sonnet-4-6"
+        )
+        self._max_tokens = max_tokens
+        self._client = anthropic.Anthropic(api_key=self._api_key)
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[ToolSpecInput] | None = None,
+        system: str | None = None,
+        temperature: float = 0.2,
+        response_format: dict[str, Any] | None = None,
+    ) -> LLMResponse:
+        kwargs: dict[str, Any] = {
+            "model": self._model,
+            "messages": self._normalize_messages(messages),
+            "max_tokens": self._max_tokens,
+            "temperature": temperature,
+        }
+        if system:
+            kwargs["system"] = system
+        if tools:
+            kwargs["tools"] = self._format_tools(tools)
+        resp = self._client.messages.create(**kwargs)
+        return self._to_llm_response(resp)
+
+    @staticmethod
+    def _normalize_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        for m in messages:
+            role = m.get("role")
+            if role == "system":
+                continue
+            if role == "user":
+                content = m.get("content") or ""
+                out.append({"role": "user", "content": str(content)})
+                continue
+            if role == "assistant":
+                blocks: list[dict[str, Any]] = []
+                text = m.get("content") or ""
+                if text:
+                    blocks.append({"type": "text", "text": str(text)})
+                for tc in m.get("tool_calls") or []:
+                    fn = tc.get("function", {})
+                    blocks.append(
+                        {
+                            "type": "tool_use",
+                            "id": tc.get("id") or f"call_{uuid.uuid4().hex[:8]}",
+                            "name": fn.get("name", ""),
+                            "input": _arguments_to_dict(fn.get("arguments")),
+                        }
+                    )
+                if blocks:
+                    out.append({"role": "assistant", "content": blocks})
+                continue
+            if role == "tool":
+                tool_use_id = m.get("tool_use_id") or m.get("tool_call_id") or ""
+                out.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_use_id,
+                                "content": str(m.get("content", "")),
+                            }
+                        ],
+                    }
+                )
+                continue
+            out.append({"role": role or "user", "content": str(m.get("content") or "")})
+        return out
+
+    @staticmethod
+    def _wrap_tool_spec(spec: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "name": spec["name"],
+            "description": spec.get("description", ""),
+            "input_schema": {
+                "type": "object",
+                "properties": _BaseLLMProvider._parameters_from_spec(spec).get(
+                    "properties", {}
+                ),
+                "required": _BaseLLMProvider._parameters_from_spec(spec).get(
+                    "required", []
+                ),
+            },
+        }
+
+    @staticmethod
+    def _to_llm_response(resp: Any) -> LLMResponse:
+        blocks = getattr(resp, "content", None) or []
+        text_parts: list[str] = []
+        tool_calls: list[ToolCall] = []
+        for block in blocks:
+            kind = getattr(block, "type", None) or (block.get("type") if isinstance(block, dict) else None)
+            if kind == "text":
+                text_parts.append(str(getattr(block, "text", None) or block.get("text", "")))
+            elif kind == "tool_use":
+                name = getattr(block, "name", None) or (block.get("name") if isinstance(block, dict) else "")
+                tool_calls.append(
+                    ToolCall(
+                        id=getattr(block, "id", None) or (block.get("id") if isinstance(block, dict) else ""),
+                        name=name,
+                        arguments=json.dumps(
+                            getattr(block, "input", None) or (block.get("input") if isinstance(block, dict) else {}),
+                            ensure_ascii=False,
+                        ),
+                    )
+                )
+
+        usage = getattr(resp, "usage", None) or {}
+        if isinstance(usage, dict):
+            input_tokens = usage.get("input_tokens")
+            output_tokens = usage.get("output_tokens")
+        else:
+            input_tokens = getattr(usage, "input_tokens", None)
+            output_tokens = getattr(usage, "output_tokens", None)
+
+        return LLMResponse(
+            content="".join(text_parts) if text_parts else None,
+            tool_calls=tool_calls,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            raw_response=_provider_raw_response(resp),
+        )
+
+
 class LLMClient:
     """Wrapper liviano con un constructor estático `from_env()`."""
 
@@ -545,6 +695,8 @@ class LLMClient:
         # entorno por otras razones (S3, CI/CD, etc.).
         if os.environ.get("OLLAMA_HOST"):
             return LLMClient(OllamaProvider())
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            return LLMClient(AnthropicProvider())
         if os.environ.get("BEDROCK_MODEL_ID"):
             return LLMClient(BedrockProvider())
-        raise RuntimeError("Define OLLAMA_HOST o BEDROCK_MODEL_ID")
+        raise RuntimeError("Define OLLAMA_HOST, ANTHROPIC_API_KEY o BEDROCK_MODEL_ID")

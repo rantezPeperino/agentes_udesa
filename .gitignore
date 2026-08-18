@@ -3,6 +3,10 @@
 **/__pycache__/
 **/.DS_Store
 
+# Local env secrets
+.env
+!.env.example
+
 # Claude Code / VSCode
 .vscode/
 .claude/

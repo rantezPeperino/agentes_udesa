@@ -70,37 +70,26 @@ class MyAgent:
         self._tools[schema.name] = tool
         self._schemas[schema.name] = schema
 
-    def run(self, user_message: str) -> AgentResult:
-        """Ejecuta el bucle del agente hasta una respuesta final o hasta max_iterations.
+    def run(
+        self,
+        user_message: str,
+        max_iterations: int | None = None,
+    ) -> AgentResult:
+        """Ejecuta el bucle del agente hasta una respuesta final o hasta `max_iterations`.
 
-        Comportamiento esperado (consulta tests/conformance/test_m1.py
-        para el contrato exacto del M1):
-          - Llama a `self._llm.chat(..., tools=list(self._schemas.values()))`.
-          - Si la respuesta contiene tool_calls, ejecuta cada uno y vuelca
-            los resultados en la siguiente llamada al chat.
-          - Si la respuesta solo contiene texto (sin `tool_calls`),
-            devuélvelo en `AgentResult.answer`. En M1 no uses la tool
-            sintética `final_result`; ese patrón es de M2 (ver README y
-            ENUNCIADO_M2.md).
-          - Limita el bucle a `self._max_iterations` y termina de forma
-            limpia cuando se alcance.
-          - Registra cada invocación de herramienta como un `AgentStep`
-            dentro de `result.steps`.
-
-        En el M2, además, llamadas sucesivas sobre la misma instancia
-        deben continuar la conversación, y la longitud de la lista de
-        mensajes enviada al LLM no debe superar `self._max_history_messages`.
-        Acumula los tokens de entrada/salida reportados por los
-        `LLMResponse` y exponlos en `AgentResult.input_tokens` /
-        `AgentResult.output_tokens`.
+        El runner de M3 llama a `agent.run(user_message=..., max_iterations=...)`,
+        así que mantenemos ese argumento como compatibilidad sin cambiar el
+        contrato base del M1/M2. Si no se pasa, se usa el valor configurado en
+        el agente.
         """
         self._conversation_history.append({"role": "user", "content": user_message})
 
         steps: list[AgentStep] = []
         total_input_tokens = 0
         total_output_tokens = 0
+        limit = self._max_iterations if max_iterations is None else max_iterations
 
-        for _ in range(self._max_iterations):
+        for _ in range(limit):
             messages = self._apply_sliding_window()
 
             response = self._llm.chat(
@@ -123,7 +112,21 @@ class MyAgent:
                     output_tokens=total_output_tokens if total_output_tokens > 0 else None,
                 )
 
-            self._conversation_history.append({"role": "assistant", "content": response.content})
+            self._conversation_history.append({
+                "role": "assistant",
+                "content": response.content or "",
+                "tool_calls": [
+                    {
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {
+                            "name": tool_call.name,
+                            "arguments": tool_call.arguments,
+                        },
+                    }
+                    for tool_call in response.tool_calls
+                ],
+            })
 
             for tool_call in response.tool_calls:
                 try:
@@ -149,6 +152,7 @@ class MyAgent:
                 self._conversation_history.append({
                     "role": "tool",
                     "content": tool_output,
+                    "tool_call_id": tool_call.id,
                     "tool_use_id": tool_call.id,
                 })
 

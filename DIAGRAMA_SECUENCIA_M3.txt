@@ -1,0 +1,926 @@
+================================================================================
+                    DIAGRAMA DE SECUENCIA - PIPELINE M3
+================================================================================
+
+El proyecto M3 es un sistema de evaluación de agentes. El flujo completo es:
+
+┌─────────┐
+│ Usuario │
+└────┬────┘
+     │ python eval/run.py
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          FASE 1: EVALUACIÓN (run.py)                        │
+│                                                                               │
+│  Para cada escenario en scenarios/:                                          │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ ESCENARIO 1: study-with-key (easy)                                 │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │                                                                      │   │
+│  │  1. Cargar escenario JSON                                           │   │
+│  │     ├─ user_message: "Abre la puerta principal"                     │   │
+│  │     ├─ goal: {type: "item_open", target: "puerta_principal"}       │   │
+│  │     └─ initial_world: {rooms, inventory, locked_items}             │   │
+│  │                                                                      │   │
+│  │  2. Crear agente                                                    │   │
+│  │     └─ agent = build_agent()                                        │   │
+│  │                                                                      │   │
+│  │  3. Registrar herramientas del mundo                                │   │
+│  │     ├─ look() → "Ves: llave bajo alfombra, puerta cerrada"         │   │
+│  │     ├─ examine("llave") → "Llave de hierro"                        │   │
+│  │     ├─ take("llave") → "✓ Tomaste la llave"                        │   │
+│  │     └─ use("llave", "cerradura") → "✓ Puerta abierta"              │   │
+│  │                                                                      │   │
+│  │  4. Ejecutar agente                                                 │   │
+│  │     ╔════════════════════════════════════════════════════════════╗ │   │
+│  │     ║  BUCLE AGENTE (max_iterations=20)                         ║ │   │
+│  │     ╠════════════════════════════════════════════════════════════╣ │   │
+│  │     ║  ITERACIÓN 1                                              ║ │   │
+│  │     ║  ───────────                                              ║ │   │
+│  │     ║  INPUT:                                                   ║ │   │
+│  │     ║    User: "Abre la puerta principal"                       ║ │   │
+│  │     ║    Herramientas disponibles: [look, examine, take, use]   ║ │   │
+│  │     ║                                                            ║ │   │
+│  │     ║  LLM CALL:                                                ║ │   │
+│  │     ║    agent._llm.chat(                                       ║ │   │
+│  │     ║      messages=[{"role": "user", "content": "..."}],       ║ │   │
+│  │     ║      tools=[ToolSchema(look), ...],                       ║ │   │
+│  │     ║      system="Eres un asistente útil"                      ║ │   │
+│  │     ║    )                                                       ║ │   │
+│  │     ║                                                            ║ │   │
+│  │     ║  RESPONSE:                                                ║ │   │
+│  │     ║    tool_calls: [                                          ║ │   │
+│  │     ║      {name: "look", arguments: "{}", id: "tool_0"}        ║ │   │
+│  │     ║    ]                                                       ║ │   │
+│  │     ║    content: "Voy a explorar la habitación primero"         ║ │   │
+│  │     ║                                                            ║ │   │
+│  │     ║  EJECUCIÓN DE HERRAMIENTA:                                ║ │   │
+│  │     ║    tool_func = agent._tools["look"]                       ║ │   │
+│  │     ║    tool_output = tool_func()                              ║ │   │
+│  │     ║      → "Ves: llave bajo alfombra, puerta cerrada"         ║ │   │
+│  │     ║                                                            ║ │   │
+│  │     ║  ACUMULAR EN HISTORIAL:                                   ║ │   │
+│  │     ║    history.append({                                       ║ │   │
+│  │     ║      "role": "user",                                      ║ │   │
+│  │     ║      "content": "Abre la puerta principal"                ║ │   │
+│  │     ║    })                                                      ║ │   │
+│  │     ║    history.append({                                       ║ │   │
+│  │     ║      "role": "assistant",                                 ║ │   │
+│  │     ║      "content": "Voy a explorar..."                       ║ │   │
+│  │     ║    })                                                      ║ │   │
+│  │     ║    history.append({                                       ║ │   │
+│  │     ║      "role": "tool",                                      ║ │   │
+│  │     ║      "content": "Ves: llave bajo alfombra..."             ║ │   │
+│  │     ║      "tool_use_id": "tool_0"                              ║ │   │
+│  │     ║    })                                                      ║ │   │
+│  │     ║                                                            ║ │   │
+│  │     ║  GUARDAR PASO:                                            ║ │   │
+│  │     ║    steps.append(AgentStep(                                ║ │   │
+│  │     ║      tool_name="look",                                    ║ │   │
+│  │     ║      tool_input="{}",                                     ║ │   │
+│  │     ║      tool_output="Ves: llave bajo alfombra...",           ║ │   │
+│  │     ║      error=None                                           ║ │   │
+│  │     ║    ))                                                      ║ │   │
+│  │     ║                                                            ║ │   │
+│  │     ║  ¿HAY MÁS tool_calls?                                     ║ │   │
+│  │     ║    → SÍ, continuar bucle                                  ║ │   │
+│  │     ╚════════════════════════════════════════════════════════════╝ │   │
+│  │                                                                      │   │
+│  │     ┌─────────────────────────────────────────────────────────────┐ │   │
+│  │     │  ITERACIÓN 2                                                │ │   │
+│  │     │  ───────────                                                │ │   │
+│  │     │  LLM ve historial completo:                                 │ │   │
+│  │     │    [{"role": "user", "content": "Abre la puerta..."},       │ │   │
+│  │     │     {"role": "assistant", "content": "Voy a explorar..."},  │ │   │
+│  │     │     {"role": "tool", "content": "Ves: llave..."}]           │ │   │
+│  │     │                                                              │ │   │
+│  │     │  LLM RESPONSE (2da llamada):                                │ │   │
+│  │     │    tool_calls: [{name: "take", arguments: "{item: ...}"}]   │ │   │
+│  │     │    content: "Voy a tomar la llave"                          │ │   │
+│  │     │                                                              │ │   │
+│  │     │  EJECUCIÓN:                                                 │ │   │
+│  │     │    take("llave") → "✓ Tomaste la llave"                     │ │   │
+│  │     │                                                              │ │   │
+│  │     │  HISTORIAL CRECE:                                           │ │   │
+│  │     │    ... + [assistant, tool de iteración 2]                   │ │   │
+│  │     └─────────────────────────────────────────────────────────────┘ │   │
+│  │                                                                      │   │
+│  │     ┌─────────────────────────────────────────────────────────────┐ │   │
+│  │     │  ITERACIÓN 3                                                │ │   │
+│  │     │  ───────────                                                │ │   │
+│  │     │  SIMILAR AL ANTERIOR: use("llave", "cerradura")             │ │   │
+│  │     │  → "✓ Puerta abierta"                                       │ │   │
+│  │     └─────────────────────────────────────────────────────────────┘ │   │
+│  │                                                                      │   │
+│  │     ┌─────────────────────────────────────────────────────────────┐ │   │
+│  │     │  ITERACIÓN 4                                                │ │   │
+│  │     │  ───────────                                                │ │   │
+│  │     │  LLM RESPONSE: SIN tool_calls                               │ │   │
+│  │     │    content: "La puerta está abierta. Tarea completada."      │ │   │
+│  │     │                                                              │ │   │
+│  │     │  ¿HAY tool_calls?                                           │ │   │
+│  │     │    → NO → BUCLE TERMINA                                     │ │   │
+│  │     │                                                              │ │   │
+│  │     │  RETORNA:                                                   │ │   │
+│  │     │    AgentResult(                                             │ │   │
+│  │     │      answer="La puerta está abierta...",                    │ │   │
+│  │     │      steps=[                                                │ │   │
+│  │     │        AgentStep(tool_name="look", ...),                    │ │   │
+│  │     │        AgentStep(tool_name="take", ...),                    │ │   │
+│  │     │        AgentStep(tool_name="use", ...)                      │ │   │
+│  │     │      ],                                                     │ │   │
+│  │     │      input_tokens=150,                                      │ │   │
+│  │     │      output_tokens=80                                       │ │   │
+│  │     │    )                                                        │ │   │
+│  │     └─────────────────────────────────────────────────────────────┘ │   │
+│  │                                                                      │   │
+│  │  5. Verificar goal                                                  │   │
+│  │     check_goal(world, goal)                                         │   │
+│  │     └─ puerta_principal.open_state == "open" → TRUE ✅              │   │
+│  │                                                                      │   │
+│  │  6. RESULTADO PARA ESTE ESCENARIO:                                  │   │
+│  │     {                                                               │   │
+│  │       "scenario_id": "study-with-key",                              │   │
+│  │       "difficulty": "easy",                                         │   │
+│  │       "passed": true,                                               │   │
+│  │       "steps": 3,                                                   │   │
+│  │       "input_tokens": 150,                                          │   │
+│  │       "output_tokens": 80,                                          │   │
+│  │       "total_tokens": 230,                                          │   │
+│  │       "latency_seconds": 2.3,                                       │   │
+│  │       "error_type": null,                                           │   │
+│  │       "optimal_steps": 3                                            │   │
+│  │     }                                                               │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ ESCENARIO 2: color-locks (medium)                                  │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │ SIMILAR AL ANTERIOR PERO:                                           │   │
+│  │ - Más iteraciones (cadena de cofres)                                │   │
+│  │ - Más tokens consumidos                                             │   │
+│  │ - Posible fallo si el agente se pierde                              │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  ... (8 escenarios totales) ...                                             │
+│                                                                               │
+│  7. GUARDAR TODOS LOS RESULTADOS                                            │
+│     ┌─ eval/results/baseline.json                                           │
+│     │  [                                                                    │
+│     │    {"scenario_id": "study-with-key", "passed": true, ...},            │
+│     │    {"scenario_id": "color-locks", "passed": true, ...},               │
+│     │    {"scenario_id": "library-search", "passed": false, ...},           │
+│     │    ...                                                                │
+│     │  ]                                                                    │
+│     └─ 8 objetos JSON (un por escenario)                                    │
+│                                                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    FASE 2: ANÁLISIS DE MÉTRICAS (metrics.py)                │
+│                                                                               │
+│  INPUT: eval/results/baseline.json                                           │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ Clase Metrics                                                       │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │                                                                      │   │
+│  │  metrics = Metrics(results)                                         │   │
+│  │                                                                      │   │
+│  │  1. ACCURACY                                                        │   │
+│  │     ├─ Global: 6/8 escenarios resueltos = 75.0%                     │   │
+│  │     └─ Por dificultad:                                              │   │
+│  │        ├─ easy:    2/2 = 100%                                       │   │
+│  │        ├─ medium:  1/2 = 50%                                        │   │
+│  │        ├─ hard:    2/2 = 100%                                       │   │
+│  │        └─ extreme: 1/2 = 50%                                        │   │
+│  │                                                                      │   │
+│  │  2. PASS@K (Resueltos en ≤k steps)                                   │   │
+│  │     ├─ pass@7:  5/8 = 62.5%                                         │   │
+│  │     ├─ pass@13: 6/8 = 75.0%                                         │   │
+│  │     └─ pass@21: 6/8 = 75.0%                                         │   │
+│  │                                                                      │   │
+│  │  3. EFFICIENCY (optimal_steps / actual_steps)                        │   │
+│  │     ├─ study-with-key:   3/3 = 100%                                 │   │
+│  │     ├─ color-locks:      11/15 = 73.3%                              │   │
+│  │     ├─ library-search:   FALLÓ (0%)                                  │   │
+│  │     └─ Promedio:         85.2%                                       │   │
+│  │                                                                      │   │
+│  │  4. TOKENS/STEP                                                     │   │
+│  │     ├─ Total tokens:     2450                                        │   │
+│  │     ├─ Total steps:      35                                          │   │
+│  │     └─ Promedio:         70 tokens/step                              │   │
+│  │                                                                      │   │
+│  │  5. BREAKDOWN BY DIFFICULTY                                         │   │
+│  │     ├─ Easy:                                                        │   │
+│  │     │  ├─ count: 2                                                  │   │
+│  │     │  ├─ passed: 2                                                 │   │
+│  │     │  ├─ accuracy: 100%                                            │   │
+│  │     │  ├─ total_steps: 6                                            │   │
+│  │     │  ├─ total_tokens: 310                                         │   │
+│  │     │  └─ tokens/step: 51.7                                         │   │
+│  │     │                                                               │   │
+│  │     ├─ Medium:                                                      │   │
+│  │     │  ├─ count: 2                                                  │   │
+│  │     │  ├─ passed: 1                                                 │   │
+│  │     │  ├─ accuracy: 50%                                             │   │
+│  │     │  ├─ total_steps: 22                                           │   │
+│  │     │  ├─ total_tokens: 950                                         │   │
+│  │     │  └─ tokens/step: 43.2                                         │   │
+│  │     │                                                               │   │
+│  │     └─ ...                                                          │   │
+│  │                                                                      │   │
+│  │  OUTPUT: metrics.summary() devuelve dict con todas las métricas      │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  SALIDA:                                                                    │
+│  ┌─ Terminal: Tabla formateada                                              │
+│  │  ════════════════════════════                                            │
+│  │  MÉTRICAS                                                                │
+│  │  ════════════════════════════                                            │
+│  │  Accuracy global:    75.0%                                               │
+│  │  Por dificultad:                                                         │
+│  │    easy      : 100.0%                                                    │
+│  │    medium    :  50.0%                                                    │
+│  │    hard      : 100.0%                                                    │
+│  │    extreme   :  50.0%                                                    │
+│  │  Pass@7:            62.5%                                                │
+│  │  Pass@13:           75.0%                                                │
+│  │  Eficiencia promedio: 85.2%                                              │
+│  │  Tokens/paso promedio: 70                                                │
+│  │  ════════════════════════════                                            │
+│  └─                                                                          │
+│                                                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 FASE 3: ANÁLISIS DE ERRORES (analysis.py)                   │
+│                                                                               │
+│  INPUT: eval/results/baseline.json                                           │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ Clase ErrorAnalysis                                                │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │                                                                      │   │
+│  │  analysis = ErrorAnalysis(results)                                  │   │
+│  │                                                                      │   │
+│  │  1. BY ERROR TYPE (solo escenarios fallidos)                        │   │
+│  │     ├─ context_exceeded:    0 (0%)                                  │   │
+│  │     ├─ timeout:             0 (0%)                                  │   │
+│  │     ├─ hallucination:       1 (50%)  ← library-search               │   │
+│  │     ├─ lost_state:          1 (50%)  ← apartment-keys               │   │
+│  │     ├─ goal_ordering:       0 (0%)                                  │   │
+│  │     ├─ navigation:          0 (0%)                                  │   │
+│  │     └─ unknown:             0 (0%)                                  │   │
+│  │                                                                      │   │
+│  │  2. BY DIFFICULTY (todos, resueltos y fallidos)                     │   │
+│  │     ├─ easy:                                                        │   │
+│  │     │  ├─ passed: 2                                                 │   │
+│  │     │  ├─ failed: 0                                                 │   │
+│  │     │  └─ accuracy: 100%                                            │   │
+│  │     │                                                               │   │
+│  │     ├─ medium:                                                      │   │
+│  │     │  ├─ passed: 1                                                 │   │
+│  │     │  ├─ failed: 1  (apartment-keys: lost_state)                   │   │
+│  │     │  └─ accuracy: 50%                                             │   │
+│  │     │                                                               │   │
+│  │     ├─ hard:                                                        │   │
+│  │     │  ├─ passed: 2                                                 │   │
+│  │     │  ├─ failed: 0                                                 │   │
+│  │     │  └─ accuracy: 100%                                            │   │
+│  │     │                                                               │   │
+│  │     └─ extreme:                                                     │   │
+│  │        ├─ passed: 1                                                 │   │
+│  │        ├─ failed: 1  (library-search: hallucination)                │   │
+│  │        └─ accuracy: 50%                                             │   │
+│  │                                                                      │   │
+│  │  3. BY MECHANIC                                                     │   │
+│  │     ├─ simple:                 100% (1/1)                           │   │
+│  │     ├─ color_chain:            100% (1/1)                           │   │
+│  │     ├─ library_search:         0%   (0/1) ← Error!                  │   │
+│  │     ├─ archive_long:           50%  (1/2)                           │   │
+│  │     ├─ multi_room_navigation:  0%   (0/1) ← Error!                  │   │
+│  │     ├─ sequence_goal:          100% (1/1)                           │   │
+│  │     ├─ multi_item_lock:        100% (1/1)                           │   │
+│  │     └─ backtracking:           100% (1/1)                           │   │
+│  │                                                                      │   │
+│  │  4. FAILURE PATTERNS                                                │   │
+│  │     ├─ no_steps_taken:        0                                     │   │
+│  │     ├─ context_exhausted:     0                                     │   │
+│  │     ├─ repeated_same_action:  0                                     │   │
+│  │     ├─ wrong_goal_order:      0                                     │   │
+│  │     └─ navigation_failure:    1  ← apartment-keys                   │   │
+│  │                                                                      │   │
+│  │  OUTPUT: analysis.summary() devuelve dict con categorización        │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  SALIDA:                                                                    │
+│  ┌─ Terminal: Tabla formateada                                              │
+│  │  ════════════════════════════════════════                                │
+│  │  ANÁLISIS DE ERRORES                                                     │
+│  │  ════════════════════════════════════════                                │
+│  │  Total ejecutados: 8                                                     │
+│  │  Resueltos:        6                                                     │
+│  │  Fallidos:         2                                                     │
+│  │                                                                           │
+│  │  Tipos de error:                                                         │
+│  │    hallucination         :  1 ( 50.0%)                                   │
+│  │    lost_state            :  1 ( 50.0%)                                   │
+│  │                                                                           │
+│  │  Por dificultad:                                                         │
+│  │    easy      : 2/2 (100.0%)                                              │
+│  │    medium    : 1/2 ( 50.0%) ← Problema                                   │
+│  │    hard      : 2/2 (100.0%)                                              │
+│  │    extreme   : 1/2 ( 50.0%) ← Problema                                   │
+│  │                                                                           │
+│  │  Por mecánica:                                                           │
+│  │    library_search       : 0/1 (  0.0%) ← CRÍTICO                         │
+│  │    multi_room_navigation: 0/1 (  0.0%) ← CRÍTICO                         │
+│  │  ════════════════════════════════════════                                │
+│  └─                                                                          │
+│                                                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                  FASE 4: EXPERIMENTOS (experiments.py)                      │
+│                                                                               │
+│  Ejecuta múltiples variantes para entender qué partes importan               │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ BASELINE (reference)                                               │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │  python eval/run.py (default: max_steps=20)                         │   │
+│  │  Resultado: accuracy=75.0%, pass@7=62.5%                            │   │
+│  │  Guardado: eval/results/baseline.json                               │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ EXPERIMENTO 1: Max Steps = 5                                       │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │  Pregunta: ¿Es crítico un horizonte largo?                          │   │
+│  │                                                                      │   │
+│  │  Intervención:                                                      │   │
+│  │    python eval/run.py --scenario all --max-steps 5                  │   │
+│  │                                                                      │   │
+│  │  Escenarios que fallan por horizonte corto:                         │   │
+│  │    ├─ color-locks: 11 pasos óptimos > 5 → FALLA                     │   │
+│  │    ├─ library-search: 7 pasos óptimos > 5 → FALLA                   │   │
+│  │    ├─ office-sequence: 13 pasos > 5 → FALLA                         │   │
+│  │    └─ vault-combination: 21 pasos > 5 → FALLA                       │   │
+│  │                                                                      │   │
+│  │  Resultado: accuracy=25.0% (solo easy: 2/8)                         │   │
+│  │  Delta: 25.0% - 75.0% = -50.0% ← CRÍTICO                            │   │
+│  │                                                                      │   │
+│  │  Conclusión:                                                        │   │
+│  │    ✅ "Horizonte corto es CRÍTICO"                                  │   │
+│  │    → Agente necesita horizonte largo para escenarios complejos      │   │
+│  │                                                                      │   │
+│  │  Guardado: eval/results/exp1_max_steps_5.json                       │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ EXPERIMENTO 2: Solo Easy Scenarios                                 │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │  Pregunta: ¿Cuál es la línea base?                                  │   │
+│  │                                                                      │   │
+│  │  Intervención:                                                      │   │
+│  │    python eval/run.py --scenario easy                               │   │
+│  │                                                                      │   │
+│  │  Escenarios easy: study-with-key, ?                                 │   │
+│  │                                                                      │   │
+│  │  Resultado: accuracy=100.0% (2/2 easy resueltos)                    │   │
+│  │                                                                      │   │
+│  │  Conclusión:                                                        │   │
+│  │    ✅ "Escenarios easy RESOLVIBLES"                                 │   │
+│  │    → Agente funciona bien en casos simples                          │   │
+│  │    → Problemas aparecen en complejidad > medium                     │   │
+│  │                                                                      │   │
+│  │  Guardado: eval/results/exp2_easy_only.json                         │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ EXPERIMENTO 3: Max Steps = 30                                      │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │  Pregunta: ¿Mejora con más iteraciones?                            │   │
+│  │                                                                      │   │
+│  │  Intervención:                                                      │   │
+│  │    python eval/run.py --scenario all --max-steps 30                 │   │
+│  │                                                                      │   │
+│  │  Escenarios que potencialmente mejoran:                             │   │
+│  │    ├─ apartment-keys: Puede que ahora tenga pasos suficientes       │   │
+│  │    └─ library-search: Más pasos = más exploración                   │   │
+│  │                                                                      │   │
+│  │  Resultado: accuracy=75.0% (sin cambio) o mejor                     │   │
+│  │  Delta: 75.0% - 75.0% = 0.0% o mejor                                │   │
+│  │                                                                      │   │
+│  │  Conclusión (dos posibilidades):                                    │   │
+│  │    A. ℹ️  "Mejora marginal con más steps"                           │   │
+│  │       → No es horizonte el problema principal                       │   │
+│  │    B. ✅ "MÁS STEPS MEJORA significativamente"                      │   │
+│  │       → Hay otros escenarios que también necesitan horizonte         │   │
+│  │                                                                      │   │
+│  │  Guardado: eval/results/exp3_max_steps_30.json                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  RESUMEN COMPARATIVO:                                                       │
+│  ╔════════════════════════════════════════════╗                             │
+│  ║ Baseline (max_steps=20):  75.0%            ║                             │
+│  ║ Exp 1 (max_steps=5):      25.0%  (-50.0%)  ║ ← CRÍTICO                  │
+│  ║ Exp 2 (easy only):        100.0%           ║ ← Baseline OK              │
+│  ║ Exp 3 (max_steps=30):     75.0%  (  0.0%)  ║ ← Sin cambio               │
+│  ╚════════════════════════════════════════════╝                             │
+│                                                                               │
+│  INSIGHTS:                                                                  │
+│  1. Horizonte largo es crítico → accuracy cae 50% con max_steps=5           │
+│  2. Easy es completamente resolvible → sin problemas de implementación      │
+│  3. Más pasos no mejoran → problema NO es solo horizonte                    │
+│  4. Conclusión: Agente necesita mejor ESTRATEGIA, no solo más pasos         │
+│                                                                               │
+│  Guardado: eval/results/experiments_summary.json                            │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ {                                                                    │   │
+│  │   "baseline": {"accuracy": 75.0, "pass@7": 62.5, "max_steps": 20},  │   │
+│  │   "exp1": {"accuracy": 25.0, "max_steps": 5},                        │   │
+│  │   "exp3": {"accuracy": 75.0, "max_steps": 30}                        │   │
+│  │ }                                                                    │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                 FASE 5: GENERACIÓN DE INFORME (report.py)                   │
+│                                                                               │
+│  INPUT:                                                                      │
+│    ├─ eval/results/baseline.json (resultados de run.py)                     │
+│    ├─ metrics.py (cálculo de métricas)                                      │
+│    └─ analysis.py (análisis de errores)                                     │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ Generador de Informe Markdown                                      │   │
+│  ├─────────────────────────────────────────────────────────────────────┤   │
+│  │                                                                      │   │
+│  │  report = generate_report(                                          │   │
+│  │    results_path="eval/results/baseline.json",                       │   │
+│  │    output_path="INFORME_M3.md"                                      │   │
+│  │  )                                                                  │   │
+│  │                                                                      │   │
+│  │  Pasos internos:                                                    │   │
+│  │  1. Cargar JSON de resultados                                       │   │
+│  │  2. Crear Metrics(results)                                          │   │
+│  │  3. Crear ErrorAnalysis(results)                                    │   │
+│  │  4. Generar secciones Markdown:                                     │   │
+│  │                                                                      │   │
+│  │     ┌──────────────────────────────────────────────────────────┐   │   │
+│  │     │ # Informe M3 - Evaluación sobre Problema Objetivo       │   │   │
+│  │     │                                                           │   │   │
+│  │     │ ## Resumen Ejecutivo                                    │   │   │
+│  │     │ **Accuracy global:** 75.0%                              │   │   │
+│  │     │ **Escenarios resueltos:** 6/8                           │   │   │
+│  │     │ **Desglose por dificultad:**                            │   │   │
+│  │     │ - **Easy**: 100% (2/2)                                  │   │   │
+│  │     │ - **Medium**: 50% (1/2)  ← Problema                     │   │   │
+│  │     │ - **Hard**: 100% (2/2)                                  │   │   │
+│  │     │ - **Extreme**: 50% (1/2) ← Problema                     │   │   │
+│  │     │                                                           │   │   │
+│  │     │ ## Resultados por Escenario                             │   │   │
+│  │     │                                                           │   │   │
+│  │     │ | Escenario | Dificultad | ✓ | Steps | Tokens | Error | │   │   │
+│  │     │ |---|---|---|---|---|---|                                │   │   │
+│  │     │ | study-with-key | Easy | ✅ | 3 | 230 | — |           │   │   │
+│  │     │ | color-locks | Medium | ✅ | 11 | 620 | — |           │   │   │
+│  │     │ | library-search | Hard | ❌ | 8 | 450 | hallucination │ │   │   │
+│  │     │ | ... | ... | ... | ... | ... | ... |                  │   │   │
+│  │     │                                                           │   │   │
+│  │     │ ## Métricas Cuantitativas                               │   │   │
+│  │     │                                                           │   │   │
+│  │     │ **Pass@7:** 62.5% (5/8)                                 │   │   │
+│  │     │ **Pass@13:** 75.0% (6/8)                                │   │   │
+│  │     │ **Pass@21:** 75.0% (6/8)                                │   │   │
+│  │     │                                                           │   │   │
+│  │     │ **Eficiencia promedio:** 85.2%                          │   │   │
+│  │     │ (Ratio: optimal_steps / actual_steps)                   │   │   │
+│  │     │                                                           │   │   │
+│  │     │ **Tokens/paso promedio:** 70                            │   │   │
+│  │     │                                                           │   │   │
+│  │     │ ### Desglose Detallado por Dificultad                   │   │   │
+│  │     │                                                           │   │   │
+│  │     │ **Easy** (2 escenarios)                                 │   │   │
+│  │     │ - Accuracy: 100%                                        │   │   │
+│  │     │ - Steps totales: 6                                      │   │   │
+│  │     │ - Tokens totales: 310                                   │   │   │
+│  │     │ - Tokens/paso: 51.7                                     │   │   │
+│  │     │                                                           │   │   │
+│  │     │ **Medium** (2 escenarios)                               │   │   │
+│  │     │ - Accuracy: 50% ← DEGRADACIÓN                           │   │   │
+│  │     │ - Steps totales: 22                                     │   │   │
+│  │     │ - Tokens totales: 950                                   │   │   │
+│  │     │ - Tokens/paso: 43.2                                     │   │   │
+│  │     │                                                           │   │   │
+│  │     │ **Hard** (2 escenarios)                                 │   │   │
+│  │     │ - Accuracy: 100%                                        │   │   │
+│  │     │ - ...                                                   │   │   │
+│  │     │                                                           │   │   │
+│  │     │ **Extreme** (2 escenarios)                              │   │   │
+│  │     │ - Accuracy: 50% ← DEGRADACIÓN                           │   │   │
+│  │     │ - ...                                                   │   │   │
+│  │     │                                                           │   │   │
+│  │     │ ## Análisis de Errores                                  │   │   │
+│  │     │                                                           │   │   │
+│  │     │ **Total fallidos:** 2/8                                 │   │   │
+│  │     │                                                           │   │   │
+│  │     │ ### Por Tipo de Error                                   │   │   │
+│  │     │ - **hallucination**: 1 escenario (50%)                  │   │   │
+│  │     │   Escenarios: library-search                            │   │   │
+│  │     │                                                           │   │   │
+│  │     │ - **lost_state**: 1 escenario (50%)                     │   │   │
+│  │     │   Escenarios: apartment-keys                            │   │   │
+│  │     │                                                           │   │   │
+│  │     │ ## Análisis por Mecánica del Escenario                 │   │   │
+│  │     │                                                           │   │   │
+│  │     │ **Simple** — 100% (1/1)                                 │   │   │
+│  │     │ **Color Chain** — 100% (1/1)                            │   │   │
+│  │     │ **Library Search** — 0% (0/1) ← Crítico                 │   │   │
+│  │     │ **Multi Room Navigation** — 0% (0/1) ← Crítico          │   │   │
+│  │     │ **Sequence Goal** — 100% (1/1)                          │   │   │
+│  │     │ **Multi Item Lock** — 100% (1/1)                        │   │   │
+│  │     │ **Backtracking** — 100% (1/1)                           │   │   │
+│  │     │ **Archive Long** — 50% (1/2)                            │   │   │
+│  │     │                                                           │   │   │
+│  │     │ ## Conclusiones                                         │   │   │
+│  │     │                                                           │   │   │
+│  │     │ El agente resuelve algunos escenarios, pero presenta    │   │   │
+│  │     │ problemas en casos más complejos. Específicamente:      │   │   │
+│  │     │                                                           │   │   │
+│  │     │ - ✅ Easy: 100% (resuelve todo)                         │   │   │
+│  │     │ - ⚠️  Medium: 50% (pierde estado en multi-sala)         │   │   │
+│  │     │ - ✅ Hard: 100% (bien)                                  │   │   │
+│  │     │ - ⚠️  Extreme: 50% (contexto y complejidad)             │   │   │
+│  │     │                                                           │   │   │
+│  │     │ ## Limitaciones Observadas                              │   │   │
+│  │     │                                                           │   │   │
+│  │     │ - extreme-archive: ~16K tokens, excede contexto pequeño │   │   │
+│  │     │ - apartment-keys: Memoria de estado insuficiente        │   │   │
+│  │     │ - office-sequence: Goals compuestos sin planificación   │   │   │
+│  │     │ - vault-combination: Multi-item lock complejo           │   │   │
+│  │     │ - backtracking-vault: Recolección en orden inverso      │   │   │
+│  │     │                                                           │   │   │
+│  │     │ ## Qué Construirías Después                             │   │   │
+│  │     │                                                           │   │   │
+│  │     │ - **Memory buffers:** Resumen explícito de estado       │   │   │
+│  │     │ - **Planning layer:** Descomposición de goals           │   │   │
+│  │     │ - **Tool use optimization:** Secuencias eficientes      │   │   │
+│  │     │ - **Context management:** Poda de event logs            │   │   │
+│  │     │ - **Multi-agent coordination:** Agentes especializados  │   │   │
+│  │     │                                                           │   │   │
+│  │     └──────────────────────────────────────────────────────────┘   │   │
+│  │                                                                      │   │
+│  │  5. Guardar Markdown                                                │   │
+│  │     ├─ Crear carpeta si falta                                       │   │
+│  │     └─ Escribir en INFORME_M3.md                                    │   │
+│  │                                                                      │   │
+│  │  OUTPUT: Archivo INFORME_M3.md (~4-6 páginas)                       │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                               │
+│  SALIDA EN FILESYSTEM:                                                      │
+│  ├─ INFORME_M3.md  ← Informe completo (Markdown)                            │
+│  └─ eval/results/baseline.json  ← Datos en JSON                             │
+│                                                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+                           FLUJO COMPLETO VISUALMENTE
+================================================================================
+
+         Usuario
+            │
+            │ python eval/run.py
+            ▼
+    ┌───────────────┐
+    │ FASE 1: RUN   │  Ejecuta agente en todos los escenarios
+    │ run.py        │  
+    └───────────────┘
+            │
+            │ Genera: eval/results/baseline.json
+            ▼
+    ┌───────────────┐
+    │ FASE 2: MET   │  Calcula accuracy, pass@k, efficiency, tokens/step
+    │ metrics.py    │  
+    └───────────────┘
+            │
+            │ Salida: Terminal (tabla)
+            ▼
+    ┌───────────────┐
+    │ FASE 3: ERR   │  Categoriza errores por tipo, dificultad, mecánica
+    │ analysis.py   │  
+    └───────────────┘
+            │
+            │ Salida: Terminal (tabla)
+            ▼
+    ┌───────────────┐
+    │ FASE 4: EXP   │  Experimentos A/B: max_steps=5, easy, max_steps=30
+    │ experiments.py│  
+    └───────────────┘
+            │
+            │ Genera: eval/results/exp{1,2,3}_*.json + summary
+            ▼
+    ┌───────────────┐
+    │ FASE 5: REP   │  Genera INFORME_M3.md con todo integrado
+    │ report.py     │  
+    └───────────────┘
+            │
+            │ Genera: INFORME_M3.md (Markdown final)
+            ▼
+         Usuario
+      (lee informe)
+
+
+================================================================================
+                    EJEMPLO CONCRETO: ESTUDIO DEL ESCENARIO
+================================================================================
+
+Escenario: study-with-key (easy)
+
+MUNDO INICIAL:
+├─ Sala: "study"
+├─ Items visibles: ["alfombra", "puerta_principal"]
+├─ Puerta principal: {open_state: "locked", locked_by: "llave"}
+├─ Alfombra: {contents: ["llave"]}
+└─ Inventario agente: []
+
+GOAL:
+└─ {type: "item_open", target: "puerta_principal"}
+
+MENSAJE DEL USUARIO:
+└─ "Abre la puerta principal"
+
+FLUJO DEL AGENTE:
+
+┌─ Iter 1 ──────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│ LLM INPUT:                                                                  │
+│   messages: [                                                               │
+│     {"role": "user", "content": "Abre la puerta principal"}                │
+│   ]                                                                         │
+│   tools: [                                                                  │
+│     ToolSchema(name="look", params={}),                                    │
+│     ToolSchema(name="examine", params={"target": str}),                    │
+│     ToolSchema(name="take", params={"item": str}),                         │
+│     ToolSchema(name="use", params={"item": str, "target": str})            │
+│   ]                                                                         │
+│   system: "Eres un asistente útil"                                         │
+│                                                                             │
+│ LLM REASONING (internamente):                                              │
+│   "El usuario quiere que abra una puerta. Primero debo explorar            │
+│    para entender el estado de la habitación. Luego buscaré una llave       │
+│    y la usaré en la puerta."                                               │
+│                                                                             │
+│ LLM OUTPUT:                                                                │
+│   {                                                                        │
+│     content: "Voy a explorar primero la habitación para entender",         │
+│     tool_calls: [{                                                         │
+│       name: "look",                                                        │
+│       arguments: "{}",                                                     │
+│       id: "tool_0"                                                         │
+│     }]                                                                     │
+│   }                                                                        │
+│                                                                             │
+│ EJECUCIÓN:                                                                 │
+│   tool_func = agent._tools["look"]                                         │
+│   tool_output = tool_func()                                                │
+│   ➔ "Ves la siguiente habitación: alfombra (item), puerta_principal       │
+│       (locked). Tu inventario está vacío."                                 │
+│                                                                             │
+│ HISTORIAL DESPUÉS:                                                         │
+│   [                                                                        │
+│     {"role": "user", "content": "Abre la puerta principal"},               │
+│     {"role": "assistant", "content": "Voy a explorar primero..."},         │
+│     {"role": "tool", "content": "Ves la siguiente...", "tool_use_id": ...} │
+│   ]                                                                        │
+│                                                                             │
+│ STEPS GUARDADO:                                                            │
+│   [AgentStep(tool_name="look", tool_input="{}", tool_output="Ves...", ...)]│
+│                                                                             │
+│ ¿Continuar bucle? SÍ (hay tool_calls en respuesta anterior)               │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Iter 2 ──────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│ LLM INPUT (historial crece):                                               │
+│   messages: [                                                               │
+│     {"role": "user", "content": "Abre la puerta principal"},               │
+│     {"role": "assistant", "content": "Voy a explorar primero..."},         │
+│     {"role": "tool", "content": "Ves la siguiente..."}                     │
+│   ]                                                                        │
+│   tools: [look, examine, take, use]  ← mismo                               │
+│   system: "Eres un asistente útil"                                         │
+│                                                                             │
+│ LLM REASONING (ahora con contexto):                                        │
+│   "Sé que hay una alfombra y una puerta locked. La alfombra podría         │
+│    contener una llave. Déjame examinarla."                                 │
+│                                                                             │
+│ LLM OUTPUT:                                                                │
+│   {                                                                        │
+│     content: "Veo una alfombra. Déjame examinarla para ver si hay algo",   │
+│     tool_calls: [{                                                         │
+│       name: "examine",                                                     │
+│       arguments: "{\"target\": \"alfombra\"}",                             │
+│       id: "tool_1"                                                         │
+│     }]                                                                     │
+│   }                                                                        │
+│                                                                             │
+│ EJECUCIÓN:                                                                 │
+│   tool_output = agent._tools["examine"](target="alfombra")                 │
+│   ➔ "La alfombra tiene una llave de hierro debajo."                        │
+│                                                                             │
+│ HISTORIAL DESPUÉS:                                                         │
+│   [                                                                        │
+│     {"role": "user", "content": "Abre la puerta principal"},               │
+│     {"role": "assistant", "content": "Voy a explorar primero..."},         │
+│     {"role": "tool", "content": "Ves la siguiente..."},                    │
+│     {"role": "assistant", "content": "Veo una alfombra..."},               │
+│     {"role": "tool", "content": "La alfombra tiene una llave..."}          │
+│   ]                                                                        │
+│                                                                             │
+│ STEPS GUARDADO (acumulativo):                                              │
+│   [                                                                        │
+│     AgentStep(tool_name="look", ...),                                      │
+│     AgentStep(tool_name="examine", tool_input="{...alfombra...}", ...)     │
+│   ]                                                                        │
+│                                                                             │
+│ ¿Continuar bucle? SÍ                                                      │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Iter 3 ──────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│ LLM REASONING:                                                              │
+│   "Hay una llave bajo la alfombra. Debo tomarla primero."                  │
+│                                                                             │
+│ LLM OUTPUT:                                                                │
+│   {                                                                        │
+│     content: "Tomaré la llave",                                            │
+│     tool_calls: [{                                                         │
+│       name: "take",                                                        │
+│       arguments: "{\"item\": \"llave\"}",                                  │
+│       id: "tool_2"                                                         │
+│     }]                                                                     │
+│   }                                                                        │
+│                                                                             │
+│ EJECUCIÓN:                                                                 │
+│   tool_output = agent._tools["take"](item="llave")                         │
+│   ➔ "✓ Tomaste la llave. Ahora está en tu inventario."                    │
+│                                                                             │
+│ MUNDO ACTUALIZADO:                                                         │
+│   Inventario agente: ["llave"]  ← Cambió                                   │
+│                                                                             │
+│ STEPS GUARDADO:                                                            │
+│   [                                                                        │
+│     AgentStep(tool_name="look", ...),                                      │
+│     AgentStep(tool_name="examine", ...),                                   │
+│     AgentStep(tool_name="take", tool_input="{...llave...}", ...)           │
+│   ]                                                                        │
+│                                                                             │
+│ ¿Continuar bucle? SÍ                                                      │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Iter 4 ──────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│ LLM REASONING:                                                              │
+│   "Tengo la llave. Ahora debo usarla en la puerta para abrirla."           │
+│                                                                             │
+│ LLM OUTPUT:                                                                │
+│   {                                                                        │
+│     content: "Usaré la llave en la puerta para abrirla",                   │
+│     tool_calls: [{                                                         │
+│       name: "use",                                                         │
+│       arguments: "{\"item\": \"llave\", \"target\": \"puerta_principal\"}", │
+│       id: "tool_3"                                                         │
+│     }]                                                                     │
+│   }                                                                        │
+│                                                                             │
+│ EJECUCIÓN:                                                                 │
+│   tool_output = agent._tools["use"](item="llave", target="puerta_principal")│
+│   ➔ "✓ Usaste la llave en la puerta_principal. La puerta se abrió."        │
+│                                                                             │
+│ MUNDO ACTUALIZADO:                                                         │
+│   puerta_principal.open_state = "open"  ← Cambió                           │
+│                                                                             │
+│ STEPS GUARDADO:                                                            │
+│   [                                                                        │
+│     AgentStep(tool_name="look", ...),                                      │
+│     AgentStep(tool_name="examine", ...),                                   │
+│     AgentStep(tool_name="take", ...),                                      │
+│     AgentStep(tool_name="use", tool_input="{...}", ...)                    │
+│   ]                                                                        │
+│                                                                             │
+│ ¿Continuar bucle? SÍ                                                      │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ Iter 5 ──────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│ LLM REASONING (última iteración):                                          │
+│   "La puerta está abierta. La tarea se completó. No necesito más tools."   │
+│                                                                             │
+│ LLM OUTPUT:                                                                │
+│   {                                                                        │
+│     content: "¡La puerta está abierta! La tarea se ha completado.",        │
+│     tool_calls: []  ← VACÍO: Sin más herramientas                          │
+│   }                                                                        │
+│                                                                             │
+│ LÓGICA DEL AGENTE:                                                         │
+│   if not response.tool_calls:                                              │
+│       return AgentResult(                                                  │
+│           answer="¡La puerta está abierta! La tarea se ha completado.",    │
+│           steps=[...],  ← Las 4 herramientas ejecutadas                    │
+│           input_tokens=150,                                                │
+│           output_tokens=80                                                 │
+│       )  ← RETORNA                                                         │
+│                                                                             │
+│ ¿Continuar bucle? NO → SALE DEL BUCLE                                     │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+RESULTADO FINAL CAPTURADO EN run.py:
+
+{
+  "scenario_id": "study-with-key",
+  "difficulty": "easy",
+  "passed": true,                      ← check_goal() retorna TRUE
+  "steps": 4,                          ← 4 herramientas ejecutadas
+  "input_tokens": 150,                 ← Acumulados de LLM
+  "output_tokens": 80,                 ← Acumulados de LLM
+  "total_tokens": 230,
+  "latency_seconds": 2.3,
+  "error_type": null,
+  "error_message": null,
+  "event_log": [...],                  ← Eventos del mundo
+  "final_inventory": ["llave"],
+  "final_room": "study",
+  "optimal_steps": 3                   ← Del ENUNCIADO_M3
+}
+
+GUARDADO EN: eval/results/baseline.json
+
+
+================================================================================
+                              RESUMEN VISUAL
+================================================================================
+
+USUARIO                    python eval/run.py
+   │                            │
+   │                            ▼
+   │                     ┌─────────────────┐
+   │                     │ For each scenario│
+   │                     │  (8 total)      │
+   │                     └────────┬────────┘
+   │                              │
+   │                              ▼
+   │                     ┌─────────────────────────┐
+   │                     │ 1. Load scenario JSON   │
+   │                     │ 2. Create agent         │
+   │                     │ 3. Register tools       │
+   │                     │ 4. Run agent.run()      │
+   │                     │    ├─ Call LLM          │
+   │                     │    ├─ Execute tools     │
+   │                     │    └─ Verify goal       │
+   │                     │ 5. Capture metrics      │
+   │                     └────────┬────────────────┘
+   │                              │
+   │                              ▼
+   │                     baseline.json (8 escenarios)
+   │                              │
+   ├─ python eval/metrics.py ─────┘  → Accuracy, pass@k
+   │
+   ├─ python eval/analysis.py ───→  Categorización errores
+   │
+   ├─ python eval/report.py ──────→  INFORME_M3.md
+   │
+   └─ python eval/experiments.py ─→  experiments_summary.json
+
+
+================================================================================
+¡AHORA ENTIENDES CÓMO FUNCIONA!
+================================================================================
+
+Resumen de capas:
+
+1. RUN.PY      → Ejecuta agente en cada escenario, captura raw data
+2. METRICS.PY  → Analiza datos: accuracy, pass@k, efficiency, tokens
+3. ANALYSIS.PY → Categoriza fallos: por tipo, dificultad, mecánica
+4. REPORT.PY   → Integra todo en informe Markdown
+5. EXPERIMENTS → A/B testing: qué partes del framework importan
+
+Flujo de datos: JSON → Métricas → Análisis → Informe

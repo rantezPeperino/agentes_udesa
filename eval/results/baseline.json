@@ -1,0 +1,265 @@
+[
+  {
+    "scenario_id": "study-with-key",
+    "description": "Un estudio con una llave dorada bajo la alfombra y una puerta cerrada.",
+    "difficulty": "easy",
+    "passed": [
+      true,
+      "puerta principal est\u00e1 abierta"
+    ],
+    "steps": 6,
+    "input_tokens": 8835,
+    "output_tokens": 785,
+    "total_tokens": 9620,
+    "latency_seconds": 16.43,
+    "error_type": null,
+    "error_message": null,
+    "event_log": [
+      "enter:estudio",
+      "take:llave_oro",
+      "open:puerta_principal"
+    ],
+    "final_inventory": [
+      "llave_oro"
+    ],
+    "final_room": "estudio",
+    "optimal_steps": 3
+  },
+  {
+    "scenario_id": "color-locks",
+    "description": "Un s\u00f3tano con cuatro cofres pintados de colores distintos. Cada cofre tiene una cerradura del mismo color, y cada uno (excepto uno) guarda dentro la llave del color del siguiente cofre. La cadena empieza con una llave plateada a la vista y termina con la llave dorada que abre la puerta principal.",
+    "difficulty": "medium",
+    "passed": [
+      true,
+      "puerta principal est\u00e1 abierta"
+    ],
+    "steps": 13,
+    "input_tokens": 32058,
+    "output_tokens": 1523,
+    "total_tokens": 33581,
+    "latency_seconds": 34.1,
+    "error_type": null,
+    "error_message": null,
+    "event_log": [
+      "enter:sotano",
+      "take:llave_plata",
+      "open:cofre_plata",
+      "take:llave_roja",
+      "open:cofre_rojo",
+      "take:llave_verde",
+      "open:cofre_verde",
+      "take:llave_oro",
+      "open:puerta_principal"
+    ],
+    "final_inventory": [
+      "llave_plata",
+      "llave_roja",
+      "llave_verde",
+      "llave_oro"
+    ],
+    "final_room": "sotano",
+    "optimal_steps": 11
+  },
+  {
+    "scenario_id": "library-search",
+    "description": "Una biblioteca con ocho libros en una estanter\u00eda alta. Uno de ellos guarda la llave de la caja fuerte; la caja, a su vez, contiene la llave grabada que abre la puerta. Los dem\u00e1s libros son prosa larga e in\u00fatil.",
+    "difficulty": "hard",
+    "passed": [
+      true,
+      "puerta principal est\u00e1 abierta"
+    ],
+    "steps": 18,
+    "input_tokens": 40642,
+    "output_tokens": 1643,
+    "total_tokens": 42285,
+    "latency_seconds": 35.1,
+    "error_type": null,
+    "error_message": null,
+    "event_log": [
+      "enter:biblioteca",
+      "take:llave_caja",
+      "open:caja_fuerte",
+      "take:llave_grabada",
+      "open:puerta_principal"
+    ],
+    "final_inventory": [
+      "llave_caja",
+      "llave_grabada"
+    ],
+    "final_room": "biblioteca",
+    "optimal_steps": 7
+  },
+  {
+    "scenario_id": "extreme-archive",
+    "description": "Archivo central de la facultad: una estanter\u00eda con veinte expedientes voluminosos. Solo uno guarda la llave de la puerta; los dem\u00e1s son prosa burocr\u00e1tica extensa que, sumada, supera el contexto de modelos peque\u00f1os. Un agente single-loop no puede examinarlos todos sin desbordar.",
+    "difficulty": "extreme",
+    "passed": [
+      true,
+      "puerta principal est\u00e1 abierta"
+    ],
+    "steps": 25,
+    "input_tokens": 61894,
+    "output_tokens": 1684,
+    "total_tokens": 63578,
+    "latency_seconds": 31.43,
+    "error_type": null,
+    "error_message": null,
+    "event_log": [
+      "enter:archivo",
+      "take:llave_archivo",
+      "open:puerta_principal"
+    ],
+    "final_inventory": [
+      "llave_archivo"
+    ],
+    "final_room": "archivo",
+    "optimal_steps": 4
+  },
+  {
+    "scenario_id": "apartment-keys",
+    "description": "Un apartamento de tres ambientes conectados. La llave de la puerta principal est\u00e1 guardada en un caj\u00f3n de la cocina, al otro extremo del recorrido. Hay que navegar entre salas, encontrar la llave y volver al recibidor para usarla.",
+    "difficulty": "medium",
+    "passed": [
+      true,
+      "puerta principal est\u00e1 abierta"
+    ],
+    "steps": 10,
+    "input_tokens": 23287,
+    "output_tokens": 1019,
+    "total_tokens": 24306,
+    "latency_seconds": 29.32,
+    "error_type": null,
+    "error_message": null,
+    "event_log": [
+      "enter:recibidor",
+      "enter:pasillo",
+      "enter:cocina",
+      "take:llave_oro",
+      "enter:pasillo",
+      "enter:recibidor",
+      "open:puerta_principal"
+    ],
+    "final_inventory": [
+      "llave_oro"
+    ],
+    "final_room": "recibidor",
+    "optimal_steps": 7
+  },
+  {
+    "scenario_id": "office-sequence",
+    "description": "Una oficina de cuatro ambientes. La llave de una caja fuerte est\u00e1 en el dep\u00f3sito; la caja (en el archivo) guarda el documento confidencial y la llave maestra de la puerta. El objetivo es compuesto y con orden: hay que llevarse el documento ANTES de abrir la puerta principal, que se sella al abrirse.",
+    "difficulty": "hard",
+    "passed": [
+      true,
+      "secuencia completada en el orden correcto"
+    ],
+    "steps": 21,
+    "input_tokens": 55529,
+    "output_tokens": 1524,
+    "total_tokens": 57053,
+    "latency_seconds": 45.74,
+    "error_type": null,
+    "error_message": null,
+    "event_log": [
+      "enter:oficina",
+      "enter:pasillo",
+      "enter:deposito",
+      "take:llave_caja",
+      "enter:pasillo",
+      "enter:archivo",
+      "open:caja_fuerte",
+      "take:documento_confidencial",
+      "take:llave_maestra",
+      "enter:pasillo",
+      "enter:oficina",
+      "open:puerta_principal"
+    ],
+    "final_inventory": [
+      "llave_caja",
+      "documento_confidencial",
+      "llave_maestra"
+    ],
+    "final_room": "oficina",
+    "optimal_steps": 13
+  },
+  {
+    "scenario_id": "vault-combination",
+    "description": "Una instalaci\u00f3n de cinco salas. La puerta principal es un panel que solo abre cuando se le colocan TRES n\u00facleos de energ\u00eda, repartidos en salas distintas. Uno de los n\u00facleos est\u00e1 en un dep\u00f3sito tras una puerta cerrada (la llave est\u00e1 en el taller), y otro en una vitrina cerrada (la llave est\u00e1 en el dep\u00f3sito). Hay que recorrer todas las salas, encadenar llaves entre salas y volver al vest\u00edbulo a combinar las tres piezas.",
+    "difficulty": "extreme",
+    "passed": [
+      false,
+      "puerta principal est\u00e1 cerrada"
+    ],
+    "steps": 23,
+    "input_tokens": 57825,
+    "output_tokens": 1604,
+    "total_tokens": 59429,
+    "latency_seconds": 43.81,
+    "error_type": null,
+    "error_message": null,
+    "event_log": [
+      "enter:vestibulo",
+      "enter:galeria",
+      "enter:taller",
+      "take:nucleo_rojo",
+      "take:llave_deposito",
+      "take:destornillador",
+      "enter:galeria",
+      "enter:biblioteca",
+      "enter:galeria",
+      "open:puerta_deposito",
+      "enter:deposito",
+      "take:nucleo_verde",
+      "take:llave_vitrina",
+      "enter:galeria",
+      "enter:biblioteca"
+    ],
+    "final_inventory": [
+      "nucleo_rojo",
+      "llave_deposito",
+      "destornillador",
+      "nucleo_verde",
+      "llave_vitrina"
+    ],
+    "final_room": "biblioteca",
+    "optimal_steps": 21
+  },
+  {
+    "scenario_id": "backtracking-vault",
+    "description": "Cinco salas en l\u00ednea con puertas que se abren progresivamente. La trampa es de backtracking: la puerta principal (en la PRIMERA sala) necesita una llave maestra encerrada en un cofre de esa misma sala, y ese cofre solo abre con una llave oxidada que est\u00e1 en la \u00daLTIMA sala. Para llegar a la \u00faltima sala hay que abrir dos puertas con llaves intermedias. Hay que avanzar hasta el fondo y volver hasta el principio.",
+    "difficulty": "extreme",
+    "passed": [
+      false,
+      "puerta principal est\u00e1 cerrada"
+    ],
+    "steps": 21,
+    "input_tokens": 57169,
+    "output_tokens": 1581,
+    "total_tokens": 58750,
+    "latency_seconds": 49.1,
+    "error_type": null,
+    "error_message": null,
+    "event_log": [
+      "enter:entrada",
+      "enter:sala_a",
+      "take:llave_intermedia",
+      "open:puerta_blindada",
+      "enter:sala_b",
+      "take:llave_boveda",
+      "open:reja",
+      "enter:boveda",
+      "take:llave_oxidada",
+      "enter:sala_b",
+      "enter:sala_a",
+      "enter:entrada",
+      "open:cofre_antiguo"
+    ],
+    "final_inventory": [
+      "llave_intermedia",
+      "llave_boveda",
+      "llave_oxidada"
+    ],
+    "final_room": "entrada",
+    "optimal_steps": 18
+  }
+]
