@@ -23,7 +23,7 @@ class MyAgent:
         self,
         llm_client: LLMClient,
         system_prompt: str = "Eres un asistente útil.",
-        max_iterations: int = 10,
+        max_iterations: int = 30,
         max_history_messages: int = 50,
     ) -> None:
         """Inicializa el agente.
@@ -115,7 +115,7 @@ class MyAgent:
                 total_output_tokens += response.output_tokens
 
             if not response.tool_calls:
-                self._conversation_history.append({"role": "assistant", "content": response.content})
+                self._conversation_history.append({"role": "assistant", "content": response.content or ""})
                 return AgentResult(
                     answer=response.content or "",
                     steps=steps,
@@ -123,7 +123,18 @@ class MyAgent:
                     output_tokens=total_output_tokens if total_output_tokens > 0 else None,
                 )
 
-            self._conversation_history.append({"role": "assistant", "content": response.content})
+            self._conversation_history.append({
+                "role": "assistant",
+                "content": response.content or "",
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {"name": tc.name, "arguments": tc.arguments},
+                    }
+                    for tc in response.tool_calls
+                ],
+            })
 
             for tool_call in response.tool_calls:
                 try:
@@ -149,7 +160,7 @@ class MyAgent:
                 self._conversation_history.append({
                     "role": "tool",
                     "content": tool_output,
-                    "tool_use_id": tool_call.id,
+                    "tool_call_id": tool_call.id,
                 })
 
                 steps.append(AgentStep(
@@ -167,28 +178,67 @@ class MyAgent:
         )
 
     def _apply_sliding_window(self) -> list[dict[str, Any]]:
-        """Aplica sliding window al historial conversacional.
+        """Aplica sliding window respetando límites y atomicidad de bloques.
 
-        Estrategia: mantener último user message (recencia) y descartar
-        mensajes antiguos si supera max_history_messages. System prompt
-        no cuenta en el presupuesto.
+        Agrupa mensajes en bloques atómicos:
+        - Un `assistant` con `tool_calls` + todos los `tool` consecutivos
+          = UN bloque (indivisible).
+        - Cualquier otro mensaje = bloque de un elemento.
+
+        Recorre bloques de atrás hacia adelante, acumulando mientras el
+        total no supere `max_history_messages`. El resultado nunca empieza
+        con `role == "tool"` y mantiene integridad assistant+tool.
         """
         if len(self._conversation_history) <= self._max_history_messages:
             return list(self._conversation_history)
 
-        latest_user_idx = -1
-        for i in range(len(self._conversation_history) - 1, -1, -1):
-            if self._conversation_history[i]["role"] == "user":
-                latest_user_idx = i
+        # Paso 1: Agrupar en bloques atómicos.
+        blocks: list[list[dict[str, Any]]] = []
+        i = 0
+        while i < len(self._conversation_history):
+            msg = self._conversation_history[i]
+            if msg["role"] == "assistant" and msg.get("tool_calls"):
+                # Bloque: este assistant + todos los tool consecutivos
+                block = [msg]
+                i += 1
+                while i < len(self._conversation_history):
+                    if self._conversation_history[i]["role"] == "tool":
+                        block.append(self._conversation_history[i])
+                        i += 1
+                    else:
+                        break
+                blocks.append(block)
+            else:
+                # Bloque de un elemento
+                blocks.append([msg])
+                i += 1
+
+        # Paso 2: Recorrer de atrás hacia adelante, acumulando bloques.
+        total = 0
+        selected_blocks: list[list[dict[str, Any]]] = []
+        for block in reversed(blocks):
+            block_size = len(block)
+            if total + block_size <= self._max_history_messages:
+                selected_blocks.append(block)
+                total += block_size
+            else:
+                # El bloque no cabe entero. Si es la primera iteración
+                # (último bloque al recorrer), podría ser un usuario más
+                # reciente; de todos modos, detenerse aquí.
                 break
 
-        if latest_user_idx == -1:
-            return list(self._conversation_history[-self._max_history_messages:])
+        # Paso 3: Aplanar en orden original y garantizar no empezar con tool.
+        selected_blocks.reverse()
+        result = []
+        for block in selected_blocks:
+            result.extend(block)
 
-        if latest_user_idx < len(self._conversation_history) - self._max_history_messages:
-            return self._conversation_history[latest_user_idx:]
+        # Asegurar que el resultado nunca empiece con un mensaje "tool"
+        # (no debería suceder con el algoritmo, pero sanear por seguridad).
+        while result and result[0]["role"] == "tool":
+            result.pop(0)
 
-        return self._conversation_history[-self._max_history_messages:]
+        return result
 
     def structured_call(
         self,
@@ -234,7 +284,7 @@ class MyAgent:
                 messages.append({
                     "role": "tool",
                     "content": "No invocaste la herramienta final_result. Debes invocar la herramienta para terminar.",
-                    "tool_use_id": "repair",
+                    "tool_call_id": "repair",
                 })
                 if attempt < max_repair_attempts:
                     continue
@@ -247,7 +297,7 @@ class MyAgent:
                 messages.append({
                     "role": "tool",
                     "content": f"Debes invocar solo final_result, no {tool_call.name}.",
-                    "tool_use_id": tool_call.id,
+                    "tool_call_id": tool_call.id,
                 })
                 if attempt < max_repair_attempts:
                     continue
@@ -261,7 +311,7 @@ class MyAgent:
                 messages.append({
                     "role": "tool",
                     "content": f"Los argumentos no son JSON válido: {str(e)}",
-                    "tool_use_id": tool_call.id,
+                    "tool_call_id": tool_call.id,
                 })
                 if attempt < max_repair_attempts:
                     continue
@@ -276,7 +326,7 @@ class MyAgent:
                 messages.append({
                     "role": "tool",
                     "content": f"Validación fallida: {str(e)}. Reintenta con argumentos válidos.",
-                    "tool_use_id": tool_call.id,
+                    "tool_call_id": tool_call.id,
                 })
                 if attempt < max_repair_attempts:
                     continue

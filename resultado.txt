@@ -1,0 +1,3991 @@
+
+
+===== ./fileSearch.py =====
+
+import os
+import sys
+
+def main():
+    if len(sys.argv) != 3:
+        print("Uso: python main.py <path_carpeta> <extension>")
+        print("Ejemplo: python main.py /home/user/proyecto .java")
+        sys.exit(1)
+
+    carpeta = sys.argv[1]
+    extension = sys.argv[2]
+
+    salida = "resultado.txt"
+
+    with open(salida, "a", encoding="utf-8") as outfile:
+        for root, dirs, files in os.walk(carpeta):
+
+            # 🔥 Evitar entrar en carpetas ocultas
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+
+            for file in files:
+                # Ignorar también archivos ocultos por seguridad
+                if file.startswith('.'):
+                    continue
+
+                if file.endswith(extension):
+                    ruta_completa = os.path.join(root, file)
+                    try:
+                        with open(ruta_completa, "r", encoding="utf-8", errors="ignore") as infile:
+                            outfile.write(f"\n\n===== {ruta_completa} =====\n\n")
+                            outfile.write(infile.read())
+                    except Exception as e:
+                        print(f"Error leyendo {ruta_completa}: {e}")
+
+    print(f"Proceso finalizado. Ver archivo: {salida}")
+
+if __name__ == "__main__":
+    main()
+
+
+
+===== ./demo_tools.py =====
+
+#!/usr/bin/env python3
+"""Script de demostración para probar las herramientas del agente.
+
+Ejecutar:
+    python demo_tools.py
+"""
+
+import json
+from mia_agents.testing import MockLLMClient
+from mia_agents.types import LLMResponse, ToolCall
+from student_framework import build_agent
+
+
+def demo_calculator():
+    """Demuestra el uso de la herramienta de calculadora."""
+    print("\n" + "="*60)
+    print("DEMO 1: Herramienta de Calculadora")
+    print("="*60)
+
+    mock = MockLLMClient([
+        LLMResponse(
+            content=None,
+            tool_calls=[
+                ToolCall(
+                    id="calc1",
+                    name="calculator",
+                    arguments=json.dumps({
+                        "operand1": 25,
+                        "operator": "*",
+                        "operand2": 4
+                    })
+                )
+            ],
+        ),
+        LLMResponse(content="El resultado de 25 * 4 es 100."),
+    ])
+
+    agent = build_agent({"llm_client": mock})
+    result = agent.run("¿Cuánto es 25 * 4?")
+
+    print(f"Pregunta: ¿Cuánto es 25 * 4?")
+    print(f"Respuesta: {result.answer}")
+    print(f"Pasos ejecutados: {len(result.steps)}")
+    for i, step in enumerate(result.steps):
+        print(f"  Paso {i+1}: {step.tool_name}")
+        print(f"    Input: {step.tool_input}")
+        print(f"    Output: {step.tool_output}")
+
+
+def demo_file_reader():
+    """Demuestra el uso de la herramienta de lector de archivos."""
+    print("\n" + "="*60)
+    print("DEMO 2: Herramienta de Lector de Archivos")
+    print("="*60)
+
+    mock = MockLLMClient([
+        LLMResponse(
+            content=None,
+            tool_calls=[
+                ToolCall(
+                    id="file1",
+                    name="file_reader",
+                    arguments=json.dumps({
+                        "file_path": "ENUNCIADO_M1.md"
+                    })
+                )
+            ],
+        ),
+        LLMResponse(content="El archivo contiene la especificación del Milestone 1."),
+    ])
+
+    agent = build_agent({"llm_client": mock})
+    result = agent.run("¿Qué contiene el archivo ENUNCIADO_M1.md?")
+
+    print(f"Pregunta: ¿Qué contiene el archivo ENUNCIADO_M1.md?")
+    print(f"Respuesta: {result.answer}")
+    print(f"Pasos ejecutados: {len(result.steps)}")
+    for i, step in enumerate(result.steps):
+        print(f"  Paso {i+1}: {step.tool_name}")
+        print(f"    Input: {step.tool_input}")
+        print(f"    Output (primeras 100 chars): {step.tool_output[:100]}...")
+
+
+def demo_word_counter():
+    """Demuestra el uso de la herramienta de contador de palabras."""
+    print("\n" + "="*60)
+    print("DEMO 3: Herramienta de Contador de Palabras")
+    print("="*60)
+
+    mock = MockLLMClient([
+        LLMResponse(
+            content=None,
+            tool_calls=[
+                ToolCall(
+                    id="words1",
+                    name="word_counter",
+                    arguments=json.dumps({
+                        "text": "Hola mundo esto es un ejemplo de contador de palabras"
+                    })
+                )
+            ],
+        ),
+        LLMResponse(content="La frase tiene 9 palabras."),
+    ])
+
+    agent = build_agent({"llm_client": mock})
+    result = agent.run("¿Cuántas palabras hay en 'Hola mundo esto es un ejemplo de contador de palabras'?")
+
+    print(f"Pregunta: ¿Cuántas palabras hay en 'Hola mundo esto es un ejemplo de contador de palabras'?")
+    print(f"Respuesta: {result.answer}")
+    print(f"Pasos ejecutados: {len(result.steps)}")
+    for i, step in enumerate(result.steps):
+        print(f"  Paso {i+1}: {step.tool_name}")
+        print(f"    Input: {step.tool_input}")
+        print(f"    Output: {step.tool_output}")
+
+
+def demo_sin_herramientas():
+    """Demuestra el agente respondiendo sin necesidad de herramientas."""
+    print("\n" + "="*60)
+    print("DEMO 4: Respuesta sin Herramientas")
+    print("="*60)
+
+    mock = MockLLMClient([
+        LLMResponse(content="El Milestone 1 es sobre construir el bucle básico del agente."),
+    ])
+
+    agent = build_agent({"llm_client": mock})
+    result = agent.run("¿Qué es el Milestone 1?")
+
+    print(f"Pregunta: ¿Qué es el Milestone 1?")
+    print(f"Respuesta: {result.answer}")
+    print(f"Herramientas utilizadas: {len(result.steps)}")
+
+
+if __name__ == "__main__":
+    print("\n🤖 DEMOSTRACIÓN DE HERRAMIENTAS DEL AGENTE\n")
+
+    demo_calculator()
+    demo_file_reader()
+    demo_word_counter()
+    demo_sin_herramientas()
+
+    print("\n" + "="*60)
+    print("✅ Todas las demostraciones completadas exitosamente")
+    print("="*60 + "\n")
+
+
+===== ./scripts/bedrock_llm_smoke.py =====
+
+#!/usr/bin/env python3
+"""Prueba mínima de Bedrock usando el cliente LLM del andamiaje.
+
+Configuren las credenciales por variables de entorno antes de ejecutar:
+
+    export AWS_ACCESS_KEY_ID="<su_access_key>"
+    export AWS_SECRET_ACCESS_KEY="<su_secret_key>"
+    export AWS_SESSION_TOKEN="<su_session_token>"  # si usan credenciales temporales
+    export AWS_REGION="us-east-1"
+    export BEDROCK_MODEL_ID="amazon.nova-lite-v1:0"
+
+Luego, desde la carpeta `scaffold/`:
+
+    python scripts/bedrock_llm_smoke.py
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+
+RECOMMENDED_MODELS = {
+    "amazon.nova-micro-v1:0": "Baseline débil para ablaciones",
+    "amazon.nova-lite-v1:0": "Default recomendado",
+    "amazon.nova-pro-v1:0": "Run fuerte, M3 extreme",
+}
+
+
+def _add_scaffold_to_path() -> None:
+    scaffold_dir = Path(__file__).resolve().parents[1]
+    sys.path.insert(0, str(scaffold_dir))
+
+
+def _missing_required_env() -> list[str]:
+    required = ["BEDROCK_MODEL_ID"]
+    return [name for name in required if not os.environ.get(name)]
+
+
+def _credential_source_hint() -> str:
+    if os.environ.get("AWS_PROFILE"):
+        return f"AWS_PROFILE={os.environ['AWS_PROFILE']}"
+    if os.environ.get("AWS_ACCESS_KEY_ID") and os.environ.get("AWS_SECRET_ACCESS_KEY"):
+        has_session = "sí" if os.environ.get("AWS_SESSION_TOKEN") else "no"
+        return (
+            "variables AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY "
+            f"(session token: {has_session})"
+        )
+    return "cadena estándar de boto3 (perfil local, rol, SSO o metadata)"
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Hace una llamada LLM simple a Bedrock usando mia_agents.llm_client.",
+    )
+    parser.add_argument(
+        "--message",
+        default="Respondé en una frase: ¿qué es un agente con herramientas?",
+        help="Mensaje de usuario para enviar al modelo.",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.2,
+        help="Temperatura de la llamada (defecto: 0.2).",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    _add_scaffold_to_path()
+
+    from mia_agents.llm_client import BedrockProvider, LLMClient
+
+    args = _build_parser().parse_args(argv)
+    missing = _missing_required_env()
+    if missing:
+        print("Faltan variables de entorno requeridas:", file=sys.stderr)
+        for name in missing:
+            print(f"  - {name}", file=sys.stderr)
+        print("\nEjemplo:", file=sys.stderr)
+        print(
+            '  export BEDROCK_MODEL_ID="amazon.nova-lite-v1:0"',
+            file=sys.stderr,
+        )
+        print('  export AWS_REGION="us-east-1"', file=sys.stderr)
+        print("\nModelos recomendados:", file=sys.stderr)
+        for model_id, purpose in RECOMMENDED_MODELS.items():
+            print(f"  - {model_id}: {purpose}", file=sys.stderr)
+        return 2
+
+    model_id = os.environ["BEDROCK_MODEL_ID"]
+    region = (
+        os.environ.get("AWS_REGION")
+        or os.environ.get("AWS_DEFAULT_REGION")
+        or "us-east-1"
+    )
+
+    print("Configuración Bedrock")
+    print(f"  Modelo      : {model_id}")
+    if model_id in RECOMMENDED_MODELS:
+        print(f"  Uso esperado: {RECOMMENDED_MODELS[model_id]}")
+    print(f"  Región      : {region}")
+    print(f"  Credenciales: {_credential_source_hint()}")
+    print()
+
+    client = LLMClient(BedrockProvider())
+    response = client.chat(
+        messages=[{"role": "user", "content": args.message}],
+        system="Respondé en español rioplatense, de forma breve y clara.",
+        temperature=args.temperature,
+    )
+
+    print("Respuesta")
+    print(response.content or "(sin texto)")
+    print()
+    print("Metadatos")
+    print(f"  input_tokens : {response.input_tokens}")
+    print(f"  output_tokens: {response.output_tokens}")
+    if response.raw_response:
+        print(f"  stopReason   : {response.raw_response.get('stopReason')}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
+
+===== ./tests/test_bedrock_provider.py =====
+
+"""Tests del BedrockProvider — mockean `boto3.client`, no requieren AWS.
+
+Verifican la traducción entre el formato interno del framework y el
+formato de la API Converse de AWS Bedrock (mensajes, herramientas,
+resultados, tokens, raw_response).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from mia_agents.llm_client import BedrockProvider
+from mia_agents.types import ToolSchema
+
+
+def _converse_response(
+    text: str | None = None,
+    tool_uses: list[dict] | None = None,
+    input_tokens: int = 10,
+    output_tokens: int = 5,
+    stop_reason: str = "end_turn",
+) -> dict:
+    blocks: list[dict] = []
+    if text is not None:
+        blocks.append({"text": text})
+    for tu in tool_uses or []:
+        blocks.append({"toolUse": tu})
+    return {
+        "output": {"message": {"role": "assistant", "content": blocks}},
+        "stopReason": stop_reason,
+        "usage": {
+            "inputTokens": input_tokens,
+            "outputTokens": output_tokens,
+            "totalTokens": input_tokens + output_tokens,
+        },
+    }
+
+
+@pytest.fixture
+def fake_client():
+    with patch("mia_agents.llm_client.boto3.client") as factory:
+        instance = MagicMock()
+        factory.return_value = instance
+        yield instance
+
+
+@pytest.fixture
+def provider(fake_client) -> BedrockProvider:
+    return BedrockProvider(
+        model="amazon.nova-lite-v1:0",
+        region="us-east-1",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Construcción
+# ---------------------------------------------------------------------------
+
+
+def test_missing_model_id_raises(monkeypatch) -> None:
+    monkeypatch.delenv("BEDROCK_MODEL_ID", raising=False)
+    with pytest.raises(RuntimeError, match="BEDROCK_MODEL_ID"):
+        BedrockProvider()
+
+
+def test_constructor_uses_env_when_args_absent(fake_client, monkeypatch) -> None:
+    monkeypatch.setenv("BEDROCK_MODEL_ID", "foo-model-id")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    provider = BedrockProvider()
+    fake_client.converse.return_value = _converse_response(text="ok")
+    provider.chat(messages=[{"role": "user", "content": "hola"}])
+    assert fake_client.converse.call_args.kwargs["modelId"] == "foo-model-id"
+
+
+# ---------------------------------------------------------------------------
+# Respuesta de texto simple
+# ---------------------------------------------------------------------------
+
+
+def test_simple_text_response_parsed(provider, fake_client) -> None:
+    fake_client.converse.return_value = _converse_response(
+        text="Hola mundo", input_tokens=100, output_tokens=50
+    )
+
+    result = provider.chat(messages=[{"role": "user", "content": "hola"}])
+
+    assert result.content == "Hola mundo"
+    assert result.tool_calls == []
+    assert result.input_tokens == 100
+    assert result.output_tokens == 50
+    assert result.raw_response is not None
+    assert result.raw_response.get("stopReason") == "end_turn"
+
+
+def test_empty_content_becomes_none(provider, fake_client) -> None:
+    fake_client.converse.return_value = _converse_response()
+    result = provider.chat(messages=[{"role": "user", "content": "x"}])
+    assert result.content is None
+
+
+def test_multiple_text_blocks_concatenated(provider, fake_client) -> None:
+    fake_client.converse.return_value = {
+        "output": {
+            "message": {
+                "role": "assistant",
+                "content": [{"text": "primera. "}, {"text": "segunda."}],
+            }
+        },
+        "stopReason": "end_turn",
+        "usage": {"inputTokens": 5, "outputTokens": 3, "totalTokens": 8},
+    }
+    result = provider.chat(messages=[{"role": "user", "content": "x"}])
+    assert result.content == "primera. segunda."
+
+
+# ---------------------------------------------------------------------------
+# Tool calls — respuesta entrante (de Bedrock)
+# ---------------------------------------------------------------------------
+
+
+def test_tool_use_parsed_to_tool_call(provider, fake_client) -> None:
+    fake_client.converse.return_value = _converse_response(
+        text=None,
+        tool_uses=[
+            {
+                "toolUseId": "tooluse_abc123",
+                "name": "examine",
+                "input": {"target": "alfombra"},
+            }
+        ],
+        stop_reason="tool_use",
+    )
+
+    result = provider.chat(messages=[{"role": "user", "content": "explora"}])
+
+    assert result.content is None
+    assert len(result.tool_calls) == 1
+    tc = result.tool_calls[0]
+    assert tc.id == "tooluse_abc123"
+    assert tc.name == "examine"
+    assert json.loads(tc.arguments) == {"target": "alfombra"}
+    assert result.raw_response is not None
+    assert result.raw_response.get("stopReason") == "tool_use"
+
+
+def test_tool_use_without_id_synthesizes_one(provider, fake_client) -> None:
+    fake_client.converse.return_value = _converse_response(
+        text=None,
+        tool_uses=[{"name": "look", "input": {}}],
+    )
+    result = provider.chat(messages=[{"role": "user", "content": "x"}])
+    assert result.tool_calls[0].id.startswith("call_")
+
+
+# ---------------------------------------------------------------------------
+# Mensaje saliente: usuario, asistente, herramientas
+# ---------------------------------------------------------------------------
+
+
+def test_user_message_wrapped_in_text_block(provider, fake_client) -> None:
+    fake_client.converse.return_value = _converse_response(text="ok")
+    provider.chat(messages=[{"role": "user", "content": "hola"}])
+    sent = fake_client.converse.call_args.kwargs["messages"]
+    assert sent == [{"role": "user", "content": [{"text": "hola"}]}]
+
+
+def test_system_prompt_goes_to_dedicated_field(provider, fake_client) -> None:
+    fake_client.converse.return_value = _converse_response(text="ok")
+    provider.chat(
+        messages=[{"role": "user", "content": "x"}],
+        system="Eres un asistente.",
+    )
+    kwargs = fake_client.converse.call_args.kwargs
+    assert kwargs["system"] == [{"text": "Eres un asistente."}]
+    # System NO debería aparecer en messages.
+    assert all(m["role"] != "system" for m in kwargs["messages"])
+
+
+def test_assistant_with_tool_calls_translated_to_tooluse_blocks(
+    provider, fake_client
+) -> None:
+    fake_client.converse.return_value = _converse_response(text="ok")
+    provider.chat(
+        messages=[
+            {"role": "user", "content": "hola"},
+            {
+                "role": "assistant",
+                "content": "voy a examinar",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "examine",
+                            "arguments": json.dumps({"target": "alfombra"}),
+                        },
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "c1", "content": "Tienes una llave."},
+        ]
+    )
+
+    sent = fake_client.converse.call_args.kwargs["messages"]
+    # 0: user, 1: assistant w/ text+toolUse, 2: user w/ toolResult.
+    assert sent[0]["role"] == "user"
+    assert sent[1]["role"] == "assistant"
+    blocks = sent[1]["content"]
+    assert blocks[0] == {"text": "voy a examinar"}
+    assert blocks[1] == {
+        "toolUse": {
+            "toolUseId": "c1",
+            "name": "examine",
+            "input": {"target": "alfombra"},
+        }
+    }
+    assert sent[2] == {
+        "role": "user",
+        "content": [
+            {
+                "toolResult": {
+                    "toolUseId": "c1",
+                    "content": [{"text": "Tienes una llave."}],
+                }
+            }
+        ],
+    }
+
+
+def test_multiple_tool_results_aggregated_in_one_user_message(
+    provider, fake_client
+) -> None:
+    fake_client.converse.return_value = _converse_response(text="ok")
+    provider.chat(
+        messages=[
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"id": "c1", "function": {"name": "a", "arguments": "{}"}},
+                    {"id": "c2", "function": {"name": "b", "arguments": "{}"}},
+                ],
+            },
+            {"role": "tool", "tool_call_id": "c1", "content": "res-1"},
+            {"role": "tool", "tool_call_id": "c2", "content": "res-2"},
+        ]
+    )
+
+    sent = fake_client.converse.call_args.kwargs["messages"]
+    tool_user_msg = sent[1]
+    assert tool_user_msg["role"] == "user"
+    assert len(tool_user_msg["content"]) == 2
+    assert tool_user_msg["content"][0]["toolResult"]["toolUseId"] == "c1"
+    assert tool_user_msg["content"][1]["toolResult"]["toolUseId"] == "c2"
+
+
+def test_tool_arguments_string_parsed_to_dict_in_outgoing(
+    provider, fake_client
+) -> None:
+    fake_client.converse.return_value = _converse_response(text="ok")
+    provider.chat(
+        messages=[
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "function": {
+                            "name": "x",
+                            "arguments": '{"foo": "bar"}',
+                        },
+                    }
+                ],
+            }
+        ]
+    )
+    sent = fake_client.converse.call_args.kwargs["messages"]
+    assert sent[0]["content"][0]["toolUse"]["input"] == {"foo": "bar"}
+
+
+# ---------------------------------------------------------------------------
+# Esquemas de herramientas
+# ---------------------------------------------------------------------------
+
+
+def test_tools_wrapped_in_toolspec_with_inputschema_json(provider, fake_client) -> None:
+    fake_client.converse.return_value = _converse_response(text="ok")
+    provider.chat(
+        messages=[{"role": "user", "content": "x"}],
+        tools=[
+            {
+                "name": "look",
+                "description": "Mira la sala.",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        ],
+    )
+    tool_config = fake_client.converse.call_args.kwargs["toolConfig"]
+    assert tool_config == {
+        "tools": [
+            {
+                "toolSpec": {
+                    "name": "look",
+                    "description": "Mira la sala.",
+                    "inputSchema": {
+                        "json": {"type": "object", "properties": {}}
+                    },
+                }
+            }
+        ]
+    }
+
+
+def test_format_tools_accepts_tool_schema_instance(provider, fake_client) -> None:
+    def look() -> str:
+        """Mira la sala actual."""
+        return "ok"
+
+    schema = ToolSchema.from_callable(look)
+    fake_client.converse.return_value = _converse_response(text="ok")
+    provider.chat(messages=[{"role": "user", "content": "x"}], tools=[schema])
+    spec = fake_client.converse.call_args.kwargs["toolConfig"]["tools"][0][
+        "toolSpec"
+    ]
+    assert spec["name"] == "look"
+    assert "Mira la sala" in spec["description"]
+    assert spec["inputSchema"]["json"]["type"] == "object"
+
+
+def test_no_tools_means_no_toolconfig_kwarg(provider, fake_client) -> None:
+    fake_client.converse.return_value = _converse_response(text="ok")
+    provider.chat(messages=[{"role": "user", "content": "x"}])
+    assert "toolConfig" not in fake_client.converse.call_args.kwargs
+
+
+# ---------------------------------------------------------------------------
+# inferenceConfig
+# ---------------------------------------------------------------------------
+
+
+def test_inference_config_includes_temperature_and_max_tokens(
+    provider, fake_client
+) -> None:
+    fake_client.converse.return_value = _converse_response(text="ok")
+    provider.chat(
+        messages=[{"role": "user", "content": "x"}],
+        temperature=0.7,
+    )
+    cfg = fake_client.converse.call_args.kwargs["inferenceConfig"]
+    assert cfg["temperature"] == 0.7
+    assert cfg["maxTokens"] == 4096  # default
+
+
+def test_custom_max_tokens(fake_client) -> None:
+    provider = BedrockProvider(model="m", region="r", max_tokens=8192)
+    fake_client.converse.return_value = _converse_response(text="ok")
+    provider.chat(messages=[{"role": "user", "content": "x"}])
+    cfg = fake_client.converse.call_args.kwargs["inferenceConfig"]
+    assert cfg["maxTokens"] == 8192
+
+
+# ---------------------------------------------------------------------------
+# response_format como JSON Schema
+# ---------------------------------------------------------------------------
+
+
+def test_response_format_not_handled_by_provider(provider, fake_client) -> None:
+    """`response_format` es responsabilidad del agente en M2, no del provider."""
+    schema = {
+        "type": "object",
+        "properties": {"answer": {"type": "string"}},
+        "required": ["answer"],
+    }
+    fake_client.converse.return_value = _converse_response(text="ok")
+    provider.chat(
+        messages=[{"role": "user", "content": "x"}],
+        system="Respondé breve.",
+        response_format=schema,
+    )
+    kwargs = fake_client.converse.call_args.kwargs
+    assert kwargs["system"] == [{"text": "Respondé breve."}]
+    assert "format" not in kwargs
+    assert "responseFormat" not in kwargs
+
+
+===== ./tests/test_ollama_provider.py =====
+
+"""Tests del OllamaProvider — mockean `ollama.Client`, no requieren un servidor.
+
+Verifican la traducción de mensajes, herramientas, formato de respuesta y
+metadata (tokens, raw_response) entre el formato interno del framework y el
+SDK de Ollama.
+"""
+
+from __future__ import annotations
+
+import json
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from mia_agents.llm_client import OllamaProvider
+
+
+def _fake_response(
+    text: str | None = None,
+    tool_calls: list | None = None,
+    prompt_eval_count: int = 10,
+    eval_count: int = 5,
+    done_reason: str | None = "stop",
+) -> dict:
+    return {
+        "message": {
+            "role": "assistant",
+            "content": text,
+            "tool_calls": tool_calls or [],
+        },
+        "prompt_eval_count": prompt_eval_count,
+        "eval_count": eval_count,
+        "done_reason": done_reason,
+    }
+
+
+def _fake_tool_call(name: str, arguments) -> dict:
+    return {"function": {"name": name, "arguments": arguments}}
+
+
+@pytest.fixture
+def fake_client():
+    with patch("mia_agents.llm_client.ollama.Client") as cls:
+        instance = MagicMock()
+        cls.return_value = instance
+        yield instance
+
+
+# ---------------------------------------------------------------------------
+# Respuesta de texto simple
+# ---------------------------------------------------------------------------
+
+
+def test_simple_text_response_parsed(fake_client) -> None:
+    fake_client.chat.return_value = _fake_response(text="Hola mundo")
+    provider = OllamaProvider(model="llama3.1")
+
+    result = provider.chat(messages=[{"role": "user", "content": "hola"}])
+
+    assert result.content == "Hola mundo"
+    assert result.tool_calls == []
+    assert result.input_tokens == 10
+    assert result.output_tokens == 5
+    assert result.raw_response is not None
+    assert result.raw_response.get("done_reason") == "stop"
+
+
+def test_empty_content_becomes_none(fake_client) -> None:
+    fake_client.chat.return_value = _fake_response(text="")
+    provider = OllamaProvider(model="llama3.1")
+    result = provider.chat(messages=[{"role": "user", "content": "x"}])
+    assert result.content is None
+
+
+# ---------------------------------------------------------------------------
+# Tool calls — entrante (respuesta del modelo) y saliente (historial)
+# ---------------------------------------------------------------------------
+
+
+def test_tool_call_response_synthesizes_id(fake_client) -> None:
+    tc = _fake_tool_call(name="examine", arguments={"target": "alfombra"})
+    fake_client.chat.return_value = _fake_response(text=None, tool_calls=[tc])
+    provider = OllamaProvider(model="llama3.1")
+
+    result = provider.chat(messages=[{"role": "user", "content": "explora"}])
+
+    assert result.content is None
+    assert len(result.tool_calls) == 1
+    out_tc = result.tool_calls[0]
+    assert out_tc.name == "examine"
+    assert json.loads(out_tc.arguments) == {"target": "alfombra"}
+    assert out_tc.id.startswith("call_"), "el provider debe sintetizar un id"
+
+
+def test_tool_call_string_arguments_passthrough(fake_client) -> None:
+    """Algunos modelos emiten `arguments` como string JSON en vez de dict."""
+    tc = _fake_tool_call(name="examine", arguments='{"target":"x"}')
+    fake_client.chat.return_value = _fake_response(text=None, tool_calls=[tc])
+    provider = OllamaProvider(model="llama3.1")
+
+    result = provider.chat(messages=[{"role": "user", "content": "x"}])
+
+    assert json.loads(result.tool_calls[0].arguments) == {"target": "x"}
+
+
+def test_outgoing_history_translates_tool_calls(fake_client) -> None:
+    """Mensajes de historial con tool_calls deben llegar a Ollama con args como dict."""
+    fake_client.chat.return_value = _fake_response(text="ok")
+    provider = OllamaProvider(model="llama3.1")
+
+    provider.chat(
+        messages=[
+            {"role": "user", "content": "hola"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "c1",
+                        "type": "function",
+                        "function": {
+                            "name": "examine",
+                            "arguments": json.dumps({"target": "alfombra"}),
+                        },
+                    }
+                ],
+            },
+            {"role": "tool", "tool_call_id": "c1", "content": "Hay una llave."},
+        ]
+    )
+
+    sent = fake_client.chat.call_args.kwargs["messages"]
+    assistant_msg = sent[1]
+    assert assistant_msg["role"] == "assistant"
+    assert assistant_msg["tool_calls"][0]["function"]["arguments"] == {
+        "target": "alfombra"
+    }
+    assert "id" not in assistant_msg["tool_calls"][0]
+    assert sent[2] == {"role": "tool", "content": "Hay una llave."}
+
+
+def test_outgoing_handles_malformed_json_arguments(fake_client) -> None:
+    """Si un modelo previo dejó argumentos malformados, no debe explotar."""
+    fake_client.chat.return_value = _fake_response(text="ok")
+    provider = OllamaProvider(model="llama3.1")
+
+    provider.chat(
+        messages=[
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"function": {"name": "x", "arguments": "{not json"}}
+                ],
+            }
+        ]
+    )
+
+    sent = fake_client.chat.call_args.kwargs["messages"]
+    assert sent[0]["tool_calls"][0]["function"]["arguments"] == {}
+
+
+# ---------------------------------------------------------------------------
+# Mensaje de sistema, herramientas y opciones
+# ---------------------------------------------------------------------------
+
+
+def test_system_prompt_prepended(fake_client) -> None:
+    fake_client.chat.return_value = _fake_response(text="ok")
+    provider = OllamaProvider(model="llama3.1")
+
+    provider.chat(
+        messages=[{"role": "user", "content": "hola"}],
+        system="Eres un asistente.",
+    )
+
+    sent = fake_client.chat.call_args.kwargs["messages"]
+    assert sent[0] == {"role": "system", "content": "Eres un asistente."}
+    assert sent[1] == {"role": "user", "content": "hola"}
+
+
+def test_embedded_system_in_messages_is_dropped(fake_client) -> None:
+    """Si el agente embebe system en la lista de mensajes, se ignora (lo
+    enviamos por el parámetro `system`)."""
+    fake_client.chat.return_value = _fake_response(text="ok")
+    provider = OllamaProvider(model="llama3.1")
+
+    provider.chat(
+        messages=[
+            {"role": "system", "content": "viejo system embebido"},
+            {"role": "user", "content": "hola"},
+        ],
+        system="nuevo system",
+    )
+
+    sent = fake_client.chat.call_args.kwargs["messages"]
+    assert sent == [
+        {"role": "system", "content": "nuevo system"},
+        {"role": "user", "content": "hola"},
+    ]
+
+
+def test_tools_formatted_for_ollama_function_calls(fake_client) -> None:
+    fake_client.chat.return_value = _fake_response(text="ok")
+    provider = OllamaProvider(model="llama3.1")
+
+    provider.chat(
+        messages=[{"role": "user", "content": "x"}],
+        tools=[
+            {
+                "name": "look",
+                "description": "Mira",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        ],
+    )
+
+    sent_tools = fake_client.chat.call_args.kwargs["tools"]
+    assert sent_tools == [
+        {
+            "type": "function",
+            "function": {
+                "name": "look",
+                "description": "Mira",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    ]
+
+
+def test_options_include_num_ctx_and_temperature(fake_client) -> None:
+    fake_client.chat.return_value = _fake_response(text="ok")
+    provider = OllamaProvider(model="llama3.1", num_ctx=32768)
+
+    provider.chat(messages=[{"role": "user", "content": "x"}], temperature=0.5)
+
+    options = fake_client.chat.call_args.kwargs["options"]
+    assert options == {"temperature": 0.5, "num_ctx": 32768}
+
+
+# ---------------------------------------------------------------------------
+# response_format
+# ---------------------------------------------------------------------------
+
+
+def test_response_format_schema_passed(fake_client) -> None:
+    schema = {"type": "object", "properties": {"k": {"type": "integer"}}}
+    fake_client.chat.return_value = _fake_response(text='{"k":1}')
+    provider = OllamaProvider(model="llama3.1")
+
+    provider.chat(
+        messages=[{"role": "user", "content": "x"}],
+        response_format=schema,
+    )
+
+    assert fake_client.chat.call_args.kwargs["format"] == schema
+
+
+def test_no_response_format_means_no_format_kwarg(fake_client) -> None:
+    fake_client.chat.return_value = _fake_response(text="ok")
+    provider = OllamaProvider(model="llama3.1")
+
+    provider.chat(messages=[{"role": "user", "content": "x"}])
+
+    assert "format" not in fake_client.chat.call_args.kwargs
+
+
+def test_default_format_used_when_no_explicit(fake_client) -> None:
+    schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}}
+    fake_client.chat.return_value = _fake_response(text="ok")
+    provider = OllamaProvider(model="llama3.1", default_format=schema)
+
+    provider.chat(messages=[{"role": "user", "content": "x"}])
+
+    assert fake_client.chat.call_args.kwargs["format"] == schema
+
+
+def test_explicit_format_overrides_default(fake_client) -> None:
+    schema = {"type": "object"}
+    default_schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}}
+    fake_client.chat.return_value = _fake_response(text="ok")
+    provider = OllamaProvider(model="llama3.1", default_format=default_schema)
+
+    provider.chat(messages=[{"role": "user", "content": "x"}], response_format=schema)
+
+    assert fake_client.chat.call_args.kwargs["format"] == schema
+
+
+# ---------------------------------------------------------------------------
+# Tolerancia a formas alternativas de respuesta (futuras versiones del SDK)
+# ---------------------------------------------------------------------------
+
+
+def test_dict_response_form_handled(fake_client) -> None:
+    """Si una versión futura del SDK devuelve dicts en vez de Pydantic, seguimos."""
+    fake_client.chat.return_value = {
+        "message": {"role": "assistant", "content": "Hola", "tool_calls": []},
+        "prompt_eval_count": 7,
+        "eval_count": 3,
+        "done_reason": "stop",
+    }
+    provider = OllamaProvider(model="llama3.1")
+
+    result = provider.chat(messages=[{"role": "user", "content": "hi"}])
+
+    assert result.content == "Hola"
+    assert result.input_tokens == 7
+    assert result.output_tokens == 3
+    assert result.raw_response is not None
+    assert result.raw_response.get("done_reason") == "stop"
+
+
+===== ./tests/test_tool_schema.py =====
+
+"""Tests de generación de ToolSchema desde callables."""
+
+from __future__ import annotations
+
+from typing import Annotated
+
+import pytest
+from pydantic import Field
+
+from mia_agents.types import ToolSchema
+
+
+def calculator(
+    left_operand: Annotated[float, Field(description="Primer operando numérico.")],
+    right_operand: Annotated[float, Field(description="Segundo operando numérico.")],
+    operator: Annotated[str, Field(description="Operador: +, -, *, %.")],
+) -> str:
+    """Calcula el resultado de dos operandos y un operador aritmético."""
+    return str(left_operand)
+
+
+def greet(name: str, polite: bool = True) -> str:
+    """Saluda a alguien."""
+    return f"Hola {name}"
+
+
+def test_from_callable_uses_function_name_and_docstring() -> None:
+    schema = ToolSchema.from_callable(calculator)
+
+    assert schema.name == "calculator"
+    assert "operador" in schema.description.lower()
+    assert schema.parameters["type"] == "object"
+    assert "left_operand" in schema.parameters["properties"]
+    assert "right_operand" in schema.parameters["properties"]
+    assert "operator" in schema.parameters["properties"]
+    assert set(schema.parameters["required"]) == {
+        "left_operand",
+        "right_operand",
+        "operator",
+    }
+
+
+def test_from_callable_field_description() -> None:
+    schema = ToolSchema.from_callable(calculator)
+    assert "operando" in schema.parameters["properties"]["left_operand"]["description"]
+
+
+def test_from_callable_optional_parameter_not_required() -> None:
+    schema = ToolSchema.from_callable(greet)
+    assert "name" in schema.parameters["required"]
+    assert "polite" not in schema.parameters.get("required", [])
+
+
+def test_from_callable_uses_full_docstring() -> None:
+    def multi(x: str) -> str:
+        """Resumen corto.
+
+        Detalle adicional para el modelo.
+        """
+        return x
+
+    schema = ToolSchema.from_callable(multi)
+    assert "Resumen corto." in schema.description
+    assert "Detalle adicional" in schema.description
+
+
+def test_from_callable_overrides() -> None:
+    schema = ToolSchema.from_callable(
+        calculator, name="calc", description="Calculadora custom."
+    )
+    assert schema.name == "calc"
+    assert schema.description == "Calculadora custom."
+
+
+def test_to_llm_spec_unchanged() -> None:
+    schema = ToolSchema.from_callable(greet)
+    spec = schema.to_llm_spec()
+    assert spec["name"] == "greet"
+    assert spec["parameters"] == schema.parameters
+
+
+def test_from_callable_zero_parameters() -> None:
+    def look() -> str:
+        """Describe la sala actual."""
+        return "ok"
+
+    schema = ToolSchema.from_callable(look)
+    assert schema.parameters["type"] == "object"
+    assert schema.parameters.get("properties", {}) == {}
+
+
+def test_var_kwargs_rejected() -> None:
+    def bad(**kwargs: str) -> str:
+        return ""
+
+    with pytest.raises(TypeError, match="\\*\\*kwargs"):
+        ToolSchema.from_callable(bad)
+
+
+===== ./tests/conformance/test_m2.py =====
+
+"""Tests de conformidad del Milestone 2.
+
+Para ejecutarlos durante el M2:
+
+    pytest tests/conformance/test_m2.py
+
+Estos tests deben pasar para aprobar el M2, pero **no son la lista completa**:
+la corrección ejecuta además otros casos sobre el mismo contrato. El contrato
+de M2 está descrito de punta a punta en `ENUNCIADO_M2.md`; tomen ese documento
+como la definición de "aprobado" y no se limiten a pasar este archivo.
+
+No modifiquen este archivo. Usa un `MockLLMClient` determinista (sin claves de
+API), por lo que pueden ejecutarlo en cualquier máquina.
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from mia_agents.testing import MockLLMClient
+from mia_agents.tool_schema import FINAL_RESULT_TOOL_NAME
+from mia_agents.types import LLMResponse, ToolCall, ToolSchema
+
+from student_framework import build_agent
+
+
+def _final_result_response(
+    arguments: dict[str, object] | str,
+    *,
+    call_id: str = "fr-1",
+) -> LLMResponse:
+    if isinstance(arguments, dict):
+        arguments = json.dumps(arguments)
+    return LLMResponse(
+        content=None,
+        tool_calls=[
+            ToolCall(
+                id=call_id,
+                name=FINAL_RESULT_TOOL_NAME,
+                arguments=arguments,
+            )
+        ],
+    )
+
+
+def _tool_names(tools: list[ToolSchema] | list[dict[str, object]] | None) -> list[str]:
+    if not tools:
+        return []
+    return [
+        t.name if isinstance(t, ToolSchema) else str(t.get("name"))
+        for t in tools
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Statefulness y gestión del historial
+# ---------------------------------------------------------------------------
+
+
+def test_agent_is_stateful_across_runs() -> None:
+    """Llamadas sucesivas a run(...) continúan la misma conversación.
+
+    Comprobamos statefulness pidiendo al agente dos turnos y verificando
+    que en el segundo turno los mensajes enviados al LLM incluyen el
+    contenido del primer turno.
+    """
+    mock = MockLLMClient(
+        [
+            LLMResponse(content="respuesta al primer turno"),
+            LLMResponse(content="respuesta al segundo turno"),
+        ]
+    )
+    agent = build_agent({"llm_client": mock})
+
+    agent.run("primer turno: recuerda el código ALFA-7")
+    agent.run("segundo turno: ¿cuál era el código?")
+
+    second_call_payload = str(mock.calls[1]["messages"])
+    assert "primer turno" in second_call_payload or "ALFA-7" in second_call_payload, (
+        "el segundo turno debe ver el contenido del primero — el agente debe ser estatal"
+    )
+
+
+def test_bounded_history_growth() -> None:
+    """La lista de mensajes enviada al LLM nunca supera max_history_messages.
+
+    Configuramos un presupuesto deliberadamente pequeño. Una
+    implementación naíf que apila el historial sin recortarlo lo supera
+    rápidamente. Cualquier estrategia razonable (ventana deslizante,
+    resumen, recuperación) lo respeta.
+    """
+    budget = 6
+    mock = MockLLMClient(
+        [LLMResponse(content=f"respuesta {i}") for i in range(30)]
+    )
+    agent = build_agent({"llm_client": mock, "max_history_messages": budget})
+
+    for i in range(20):
+        agent.run(f"turno {i}: cuéntame algo")
+
+    max_seen = max(len(call["messages"]) for call in mock.calls)
+    assert max_seen <= budget, (
+        f"el historial creció hasta {max_seen} mensajes; el presupuesto era {budget}. "
+        "Una estrategia de memoria razonable debería respetar este límite."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Salida estructurada (`final_result` obligatorio)
+# ---------------------------------------------------------------------------
+
+
+def test_structured_call_offers_final_result_tool() -> None:
+    """La primera llamada de `structured_call` debe exponer `final_result`."""
+    from pydantic import BaseModel
+
+    class Answer(BaseModel):
+        result: int
+
+    mock = MockLLMClient([_final_result_response({"result": 1})])
+    agent = build_agent({"llm_client": mock})
+    agent.structured_call(prompt="dame un objeto", schema=Answer)
+
+    tools = mock.calls[0]["tools"]
+    assert FINAL_RESULT_TOOL_NAME in _tool_names(tools), (
+        f"esperado tool {FINAL_RESULT_TOOL_NAME!r} en la primera llamada, "
+        f"obtuvo {_tool_names(tools)!r}"
+    )
+
+
+def test_structured_output_max_retries() -> None:
+    """Tras agotar reintentos, `structured_call` debe levantar una excepción.
+
+    El tipo exacto se deja abierto — pueden ser `ValidationError`,
+    `JSONDecodeError`, o una excepción específica del estudiante. Lo que
+    no se acepta es devolver `None`, devolver una instancia parcial, o
+    colgarse en bucle.
+    """
+    from pydantic import BaseModel
+
+    class Answer(BaseModel):
+        result: int
+
+    mock = MockLLMClient(
+        [
+            LLMResponse(content="no JSON 1"),
+            LLMResponse(content="no JSON 2"),
+            LLMResponse(content="no JSON 3"),
+        ]
+    )
+    agent = build_agent({"llm_client": mock})
+
+    with pytest.raises(Exception):
+        agent.structured_call(
+            prompt="dame un objeto",
+            schema=Answer,
+            max_repair_attempts=2,
+        )
+
+    assert mock.call_count == 3, (
+        "con max_repair_attempts=2 esperamos 1 intento inicial + 2 reparaciones"
+    )
+
+
+def test_structured_output_repairs_schema_validation_error() -> None:
+    """Argumentos de `final_result` inválidos para el schema deben repararse."""
+    from pydantic import BaseModel
+
+    class Answer(BaseModel):
+        result: int
+        comment: str
+
+    mock = MockLLMClient(
+        [
+            _final_result_response({"result": "cuarenta y dos", "comment": "x"}),
+            _final_result_response({"result": 42, "comment": "ok"}, call_id="fr-2"),
+        ]
+    )
+    agent = build_agent({"llm_client": mock})
+
+    parsed = agent.structured_call(prompt="dame un objeto", schema=Answer)
+
+    assert isinstance(parsed, Answer)
+    assert parsed.result == 42
+    assert parsed.comment == "ok"
+    assert mock.call_count == 2
+
+
+
+# ---------------------------------------------------------------------------
+# Tracking de tokens
+# ---------------------------------------------------------------------------
+
+
+def test_token_accounting() -> None:
+    """`AgentResult.{input,output}_tokens` deben sumar lo reportado por el
+    cliente LLM a lo largo de la llamada a `run`.
+
+    Si ninguna `LLMResponse` reporta tokens, el agente puede devolver `None`
+    en ambos campos. Si alguna lo hace, debe sumar lo reportado tratando
+    `None` por respuesta como 0.
+    """
+    from mia_agents.testing import make_recording_tool
+    from mia_agents.types import ToolCall
+    import json
+
+    tool, schema = make_recording_tool(return_value="ok")
+    mock = MockLLMClient(
+        [
+            LLMResponse(
+                content=None,
+                tool_calls=[
+                    ToolCall(id="c1", name=schema.name, arguments=json.dumps({"text": "x"}))
+                ],
+                input_tokens=100,
+                output_tokens=50,
+            ),
+            LLMResponse(content="hecho", input_tokens=200, output_tokens=30),
+        ]
+    )
+    agent = build_agent({"llm_client": mock})
+    agent.register_tool(tool, schema)
+    result = agent.run("dispara la herramienta y termina")
+
+    assert result.input_tokens == 300, (
+        f"esperado 100+200=300, obtuvo {result.input_tokens!r}"
+    )
+    assert result.output_tokens == 80, (
+        f"esperado 50+30=80, obtuvo {result.output_tokens!r}"
+    )
+
+
+def test_token_accounting_treats_missing_values_as_zero_after_first_report() -> None:
+    """Una vez hay tokens reportados, las respuestas sin tokens suman 0."""
+    from mia_agents.testing import make_recording_tool
+    from mia_agents.types import ToolCall
+    import json
+
+    tool, schema = make_recording_tool(return_value="ok")
+    mock = MockLLMClient(
+        [
+            LLMResponse(
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="c1",
+                        name=schema.name,
+                        arguments=json.dumps({"text": "x"}),
+                    )
+                ],
+                input_tokens=100,
+            ),
+            LLMResponse(content="hecho", output_tokens=30),
+        ]
+    )
+    agent = build_agent({"llm_client": mock})
+    agent.register_tool(tool, schema)
+    result = agent.run("dispara la herramienta y termina")
+
+    assert result.input_tokens == 100
+    assert result.output_tokens == 30
+
+
+===== ./tests/conformance/test_m1.py =====
+
+"""Tests de conformidad del Milestone 1.
+
+Estos tests deben pasar para aprobar el M1, pero **no son la lista completa**:
+la corrección ejecuta además otros casos sobre el mismo contrato. El contrato
+de M1 está descrito de punta a punta en `ENUNCIADO_M1.md`; tomen ese documento
+como la definición de "aprobado" y no se limiten a pasar este archivo.
+
+No modifiquen este archivo. Usa un `MockLLMClient` determinista (sin claves de
+API), por lo que pueden ejecutarlo en cualquier máquina.
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from mia_agents.protocols import Agent
+from mia_agents.testing import MockLLMClient, make_recording_tool
+from mia_agents.types import AgentResult, AgentStep, LLMResponse, ToolCall, ToolSchema
+
+from student_framework import build_agent
+
+
+def _agent_with(mock: MockLLMClient) -> Agent:
+    return build_agent({"llm_client": mock})
+
+
+def test_build_agent_factory_exists() -> None:
+    mock = MockLLMClient([LLMResponse(content="hola")])
+    agent = _agent_with(mock)
+    assert isinstance(agent, Agent)
+
+
+def test_run_returns_agent_result() -> None:
+    mock = MockLLMClient([LLMResponse(content="hola")])
+    agent = _agent_with(mock)
+    result = agent.run("hola")
+    assert isinstance(result, AgentResult)
+
+
+def test_no_tool_no_loop() -> None:
+    """Si el LLM devuelve texto sin tool_calls, el agente devuelve ese texto en un único turno."""
+    mock = MockLLMClient([LLMResponse(content="La respuesta es 4.")])
+    agent = _agent_with(mock)
+    result = agent.run("¿cuánto es 2+2?")
+    assert result.answer == "La respuesta es 4."
+    assert result.steps == []
+    assert mock.call_count == 1
+
+
+def test_register_tool_signature() -> None:
+    """register_tool acepta (callable, ToolSchema) y expone la herramienta al LLM."""
+    tool, schema = make_recording_tool()
+    mock = MockLLMClient([LLMResponse(content="hecho")])
+    agent = _agent_with(mock)
+    agent.register_tool(tool, schema)
+    agent.run("disparar")
+    sent_tools = mock.calls[0]["tools"]
+    assert sent_tools is not None, "el agente debería pasar los esquemas de herramientas al cliente LLM"
+    names = [
+        t.name if isinstance(t, ToolSchema) else t.get("name") for t in sent_tools
+    ]
+    assert schema.name in names
+
+
+def test_tool_is_executed_when_called() -> None:
+    """Cuando el LLM emite un tool_call, el agente ejecuta el callable y vuelca el resultado."""
+    tool, schema = make_recording_tool(return_value="recorded:hola")
+    mock = MockLLMClient(
+        [
+            LLMResponse(
+                content=None,
+                tool_calls=[
+                    ToolCall(id="c1", name=schema.name, arguments=json.dumps({"text": "hola"}))
+                ],
+            ),
+            LLMResponse(content="La herramienta se ejecutó."),
+        ]
+    )
+    agent = _agent_with(mock)
+    agent.register_tool(tool, schema)
+    result = agent.run("invoca la herramienta")
+
+    assert tool.calls == [{"text": "hola"}]
+    assert result.answer == "La herramienta se ejecutó."
+    assert len(result.steps) == 1
+    assert result.steps[0].tool_name == schema.name
+
+
+
+===== ./tests/conformance/__init__.py =====
+
+
+
+===== ./tests/conformance/test_m3_world.py =====
+
+"""Tests del mundo simulado de M3.
+
+Ejercitan las herramientas FIJAS de `mia_world` directamente, sin pasar
+por un LLM real. Sirven para asegurar que el mundo es funcional y
+consistente, independientemente del estado del agente del estudiante.
+
+Una iteración futura añadirá un test que ejecute un agente real
+(`build_agent`) contra un escenario; por ahora los tests del agente
+viven en `test_m1.py` / `test_m2.py`.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from mia_world import (
+    Item,
+    Room,
+    Scenario,
+    World,
+    check_goal,
+    list_scenarios,
+    load_scenario,
+    make_world_tools,
+)
+from mia_world.cli import _resolve_scenario
+
+
+SCENARIOS_DIR = Path(__file__).resolve().parents[2] / "scenarios"
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _build_study_scenario() -> Scenario:
+    """Construye el escenario 'estudio con llave' inline.
+
+    Los tests usan esto en vez de cargar el JSON para no acoplarse a la
+    ruta del fichero. Un test aparte verifica que `load_scenario` produce
+    un estado equivalente.
+    """
+    items = {
+        "alfombra": Item(
+            id="alfombra",
+            name="alfombra",
+            description="Una vieja alfombra. Algo abulta debajo.",
+            container=True,
+            contains=["llave_oro"],
+        ),
+        "llave_oro": Item(
+            id="llave_oro",
+            name="llave dorada",
+            description="Una llave dorada, pesada.",
+            takeable=True,
+            hidden_by="alfombra",
+        ),
+        "escritorio": Item(
+            id="escritorio",
+            name="escritorio",
+            description="Cajones vacíos.",
+            container=True,
+            contains=[],
+        ),
+        "puerta_principal": Item(
+            id="puerta_principal",
+            name="puerta principal",
+            description="Puerta robusta de roble.",
+            locked={"requires_item": "llave_oro"},
+            open_state="closed",
+        ),
+    }
+    rooms = {
+        "estudio": Room(
+            id="estudio",
+            name="Estudio",
+            description="Un estudio pequeño forrado de libros.",
+            items=["alfombra", "escritorio", "puerta_principal"],
+        ),
+    }
+    world = World(rooms=rooms, items=items, current_room="estudio")
+    return Scenario(
+        id="study-with-key",
+        description="Un estudio cerrado.",
+        user_message="Encuentra la forma de salir.",
+        initial_world=world,
+        goal={"type": "item_open", "item": "puerta_principal"},
+    )
+
+
+def _tools(world: World) -> dict[str, callable]:
+    return {schema.name: fn for fn, schema in make_world_tools(world)}
+
+
+# ---------------------------------------------------------------------------
+# Visibilidad y look
+# ---------------------------------------------------------------------------
+
+
+def test_look_lists_visible_items_only() -> None:
+    """`look` muestra los items directamente en la sala, no los ocultos."""
+    world = _build_study_scenario().initial_world
+    out = _tools(world)["look"]()
+    assert "alfombra" in out
+    assert "escritorio" in out
+    assert "puerta principal" in out
+    assert "llave" not in out, "la llave está oculta bajo la alfombra y no debería aparecer"
+
+
+def test_look_marks_locked_doors_as_closed() -> None:
+    world = _build_study_scenario().initial_world
+    out = _tools(world)["look"]()
+    assert "cerrada" in out
+
+
+def test_examining_carpet_reveals_hidden_key() -> None:
+    """Tras examinar la alfombra, la llave queda visible en la sala."""
+    world = _build_study_scenario().initial_world
+    tools = _tools(world)
+    msg = tools["examine"](target="alfombra")
+    assert "llave" in msg, f"el examine debe listar el contenido: {msg!r}"
+
+    out = tools["look"]()
+    assert "llave" in out, "la llave revelada debe aparecer en look posteriores"
+
+
+# ---------------------------------------------------------------------------
+# take
+# ---------------------------------------------------------------------------
+
+
+def test_take_hidden_item_requires_reveal_first() -> None:
+    """No se puede tomar un item antes de descubrirlo."""
+    world = _build_study_scenario().initial_world
+    tools = _tools(world)
+    msg = tools["take"](item="llave_oro")
+    assert "Error" in msg
+    assert "llave_oro" not in world.inventory
+
+
+def test_take_after_reveal_moves_item_to_inventory() -> None:
+    world = _build_study_scenario().initial_world
+    tools = _tools(world)
+    tools["examine"](target="alfombra")
+    msg = tools["take"](item="llave_oro")
+    assert "Tomas" in msg
+    assert world.inventory == ["llave_oro"]
+    # La llave ya no está en el contenedor padre.
+    assert "llave_oro" not in world.items["alfombra"].contains
+
+
+def test_take_non_takeable_fails() -> None:
+    """La alfombra es contenedor pero no `takeable`. No debe poder cogerse."""
+    world = _build_study_scenario().initial_world
+    msg = _tools(world)["take"](item="alfombra")
+    assert "Error" in msg
+    assert "alfombra" not in world.inventory
+
+
+# ---------------------------------------------------------------------------
+# use
+# ---------------------------------------------------------------------------
+
+
+def test_use_without_item_in_inventory_fails() -> None:
+    world = _build_study_scenario().initial_world
+    msg = _tools(world)["use"](item="llave_oro", target="puerta_principal")
+    assert "Error" in msg
+    assert world.items["puerta_principal"].open_state == "closed"
+
+
+def test_use_correct_key_opens_door() -> None:
+    world = _build_study_scenario().initial_world
+    tools = _tools(world)
+    tools["examine"](target="alfombra")
+    tools["take"](item="llave_oro")
+    msg = tools["use"](item="llave_oro", target="puerta_principal")
+    assert "abre" in msg.lower()
+    assert world.items["puerta_principal"].open_state == "open"
+
+
+def test_use_wrong_target_does_not_open() -> None:
+    """Usar la llave sobre el escritorio (no cerrado) no rompe nada."""
+    world = _build_study_scenario().initial_world
+    tools = _tools(world)
+    tools["examine"](target="alfombra")
+    tools["take"](item="llave_oro")
+    msg = tools["use"](item="llave_oro", target="escritorio")
+    assert "Error" not in msg or "no pasa" in msg.lower()
+    assert world.items["puerta_principal"].open_state == "closed"
+
+
+# ---------------------------------------------------------------------------
+# Solución óptima end-to-end + goal
+# ---------------------------------------------------------------------------
+
+
+def test_optimal_solution_satisfies_goal() -> None:
+    scenario = _build_study_scenario()
+    world = scenario.initial_world
+    tools = _tools(world)
+
+    assert check_goal(world, scenario.goal) == (False, "puerta principal está cerrada")
+
+    tools["examine"](target="alfombra")
+    tools["take"](item="llave_oro")
+    tools["use"](item="llave_oro", target="puerta_principal")
+
+    won, reason = check_goal(world, scenario.goal)
+    assert won is True
+    assert "abierta" in reason
+
+
+# ---------------------------------------------------------------------------
+# Cargador de escenarios desde JSON
+# ---------------------------------------------------------------------------
+
+
+SCENARIO_PATH = (
+    Path(__file__).resolve().parents[2] / "scenarios" / "01-study-with-key.json"
+)
+
+
+@pytest.mark.skipif(
+    not SCENARIO_PATH.exists(),
+    reason=f"Escenario no encontrado en {SCENARIO_PATH}",
+)
+def test_load_scenario_from_disk() -> None:
+    """`load_scenario` produce un mundo en el que la solución óptima funciona."""
+    scenario = load_scenario(SCENARIO_PATH)
+    assert scenario.id == "study-with-key"
+    assert scenario.goal == {"type": "item_open", "item": "puerta_principal"}
+
+    world = scenario.initial_world
+    tools = _tools(world)
+    tools["examine"](target="alfombra")
+    tools["take"](item="llave_oro")
+    tools["use"](item="llave_oro", target="puerta_principal")
+    won, _ = check_goal(world, scenario.goal)
+    assert won is True
+
+
+# ---------------------------------------------------------------------------
+# Robustez frente a entradas inválidas
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "tool_name,kwargs",
+    [
+        ("examine", {"target": "fantasma"}),
+        ("take", {"item": "fantasma"}),
+        ("use", {"item": "fantasma", "target": "puerta_principal"}),
+        ("use", {"item": "llave_oro", "target": "fantasma"}),
+    ],
+)
+def test_invalid_ids_return_error_strings(tool_name: str, kwargs: dict) -> None:
+    """Ids inexistentes nunca deben lanzar excepciones; devuelven texto de error."""
+    world = _build_study_scenario().initial_world
+    msg = _tools(world)[tool_name](**kwargs)
+    assert isinstance(msg, str)
+    assert "Error" in msg
+
+
+# ---------------------------------------------------------------------------
+# Contenedores cerrados con llave (semántica de medium/hard)
+# ---------------------------------------------------------------------------
+
+
+def test_examining_locked_container_hides_contents() -> None:
+    """Un contenedor cerrado con llave NO debe filtrar sus contenidos al examinarlo."""
+    items = {
+        "cofre": Item(
+            id="cofre",
+            name="cofre",
+            description="Un cofre.",
+            container=True,
+            contains=["tesoro"],
+            locked={"requires_item": "llave"},
+            open_state="closed",
+        ),
+        "tesoro": Item(
+            id="tesoro",
+            name="tesoro",
+            description="...",
+            takeable=True,
+            hidden_by="cofre",
+        ),
+    }
+    rooms = {"sala": Room(id="sala", name="Sala", description="...", items=["cofre"])}
+    world = World(rooms=rooms, items=items, current_room="sala")
+
+    msg = _tools(world)["examine"](target="cofre")
+    assert "tesoro" not in msg, (
+        "examinar un contenedor cerrado con llave no debe listar su contenido"
+    )
+    assert "cerrad" in msg.lower()
+    assert "cofre" not in world.revealed, (
+        "el contenedor no debe quedar 'revealed' hasta que se abra"
+    )
+
+
+def test_unlocking_container_then_examining_reveals_contents() -> None:
+    """Una vez abierto con `use`, el examen del contenedor debe revelar el contenido."""
+    items = {
+        "cofre": Item(
+            id="cofre",
+            name="cofre",
+            description="Un cofre.",
+            container=True,
+            contains=["tesoro"],
+            locked={"requires_item": "llave"},
+            open_state="closed",
+        ),
+        "tesoro": Item(
+            id="tesoro",
+            name="tesoro",
+            description="Un tesoro.",
+            takeable=True,
+            hidden_by="cofre",
+        ),
+        "llave": Item(id="llave", name="llave", description="...", takeable=True),
+    }
+    rooms = {
+        "sala": Room(id="sala", name="Sala", description="...", items=["cofre", "llave"])
+    }
+    world = World(rooms=rooms, items=items, current_room="sala")
+    tools = _tools(world)
+
+    tools["take"](item="llave")
+    tools["use"](item="llave", target="cofre")
+    msg = tools["examine"](target="cofre")
+    assert "tesoro" in msg
+    assert "cofre" in world.revealed
+
+
+# ---------------------------------------------------------------------------
+# Suite de escenarios: solución óptima por dificultad
+# ---------------------------------------------------------------------------
+
+
+# (scenario_file, action_sequence). Cada acción es (tool_name, kwargs).
+_SCENARIO_SOLUTIONS = {
+    "01-study-with-key.json": [
+        ("examine", {"target": "alfombra"}),
+        ("take", {"item": "llave_oro"}),
+        ("use", {"item": "llave_oro", "target": "puerta_principal"}),
+    ],
+    "02-medium-color-locks.json": [
+        ("take", {"item": "llave_plata"}),
+        ("use", {"item": "llave_plata", "target": "cofre_plata"}),
+        ("examine", {"target": "cofre_plata"}),
+        ("take", {"item": "llave_roja"}),
+        ("use", {"item": "llave_roja", "target": "cofre_rojo"}),
+        ("examine", {"target": "cofre_rojo"}),
+        ("take", {"item": "llave_verde"}),
+        ("use", {"item": "llave_verde", "target": "cofre_verde"}),
+        ("examine", {"target": "cofre_verde"}),
+        ("take", {"item": "llave_oro"}),
+        ("use", {"item": "llave_oro", "target": "puerta_principal"}),
+    ],
+    "03-hard-library-search.json": [
+        ("examine", {"target": "estanteria_alta"}),
+        ("examine", {"target": "libro_sermones"}),
+        ("take", {"item": "llave_caja"}),
+        ("use", {"item": "llave_caja", "target": "caja_fuerte"}),
+        ("examine", {"target": "caja_fuerte"}),
+        ("take", {"item": "llave_grabada"}),
+        ("use", {"item": "llave_grabada", "target": "puerta_principal"}),
+    ],
+    "04-extreme-archive.json": [
+        ("examine", {"target": "estanteria_archivo"}),
+        ("examine", {"target": "expediente_7240"}),
+        ("take", {"item": "llave_archivo"}),
+        ("use", {"item": "llave_archivo", "target": "puerta_principal"}),
+    ],
+    "05-medium-apartment-keys.json": [
+        ("go", {"direction": "norte"}),
+        ("go", {"direction": "este"}),
+        ("examine", {"target": "cajon"}),
+        ("take", {"item": "llave_oro"}),
+        ("go", {"direction": "oeste"}),
+        ("go", {"direction": "sur"}),
+        ("use", {"item": "llave_oro", "target": "puerta_principal"}),
+    ],
+    "06-hard-office-sequence.json": [
+        ("go", {"direction": "este"}),
+        ("go", {"direction": "este"}),
+        ("examine", {"target": "cajon_llaves"}),
+        ("take", {"item": "llave_caja"}),
+        ("go", {"direction": "oeste"}),
+        ("go", {"direction": "norte"}),
+        ("use", {"item": "llave_caja", "target": "caja_fuerte"}),
+        ("examine", {"target": "caja_fuerte"}),
+        ("take", {"item": "documento_confidencial"}),
+        ("take", {"item": "llave_maestra"}),
+        ("go", {"direction": "sur"}),
+        ("go", {"direction": "oeste"}),
+        ("use", {"item": "llave_maestra", "target": "puerta_principal"}),
+    ],
+    "07-extreme-vault-combination.json": [
+        ("go", {"direction": "norte"}),
+        ("go", {"direction": "este"}),
+        ("examine", {"target": "banco_herramientas"}),
+        ("take", {"item": "nucleo_rojo"}),
+        ("take", {"item": "llave_deposito"}),
+        ("go", {"direction": "oeste"}),
+        ("use", {"item": "llave_deposito", "target": "puerta_deposito"}),
+        ("go", {"direction": "norte"}),
+        ("examine", {"target": "cajon_deposito"}),
+        ("take", {"item": "nucleo_verde"}),
+        ("take", {"item": "llave_vitrina"}),
+        ("go", {"direction": "sur"}),
+        ("go", {"direction": "oeste"}),
+        ("use", {"item": "llave_vitrina", "target": "vitrina"}),
+        ("examine", {"target": "vitrina"}),
+        ("take", {"item": "nucleo_azul"}),
+        ("go", {"direction": "este"}),
+        ("go", {"direction": "sur"}),
+        ("use", {"item": "nucleo_rojo", "target": "puerta_principal"}),
+        ("use", {"item": "nucleo_azul", "target": "puerta_principal"}),
+        ("use", {"item": "nucleo_verde", "target": "puerta_principal"}),
+    ],
+    "08-extreme-backtracking-vault.json": [
+        ("go", {"direction": "norte"}),
+        ("examine", {"target": "escritorio"}),
+        ("take", {"item": "llave_intermedia"}),
+        ("use", {"item": "llave_intermedia", "target": "puerta_blindada"}),
+        ("go", {"direction": "norte"}),
+        ("examine", {"target": "armario"}),
+        ("take", {"item": "llave_boveda"}),
+        ("use", {"item": "llave_boveda", "target": "reja"}),
+        ("go", {"direction": "norte"}),
+        ("examine", {"target": "caja_seguridad"}),
+        ("take", {"item": "llave_oxidada"}),
+        ("go", {"direction": "sur"}),
+        ("go", {"direction": "sur"}),
+        ("go", {"direction": "sur"}),
+        ("use", {"item": "llave_oxidada", "target": "cofre_antiguo"}),
+        ("examine", {"target": "cofre_antiguo"}),
+        ("take", {"item": "llave_maestra"}),
+        ("use", {"item": "llave_maestra", "target": "puerta_principal"}),
+    ],
+}
+
+
+@pytest.mark.parametrize("scenario_file,actions", list(_SCENARIO_SOLUTIONS.items()))
+def test_scenario_optimal_solution_wins(scenario_file: str, actions: list) -> None:
+    """Cada escenario JSON tiene una solución óptima conocida que satisface la meta."""
+    scenario = load_scenario(SCENARIOS_DIR / scenario_file)
+    world = scenario.initial_world
+    tools = _tools(world)
+    for tool_name, kwargs in actions:
+        result = tools[tool_name](**kwargs)
+        assert not result.startswith("Error"), (
+            f"{tool_name}({kwargs}) en {scenario_file} devolvió error: {result}"
+        )
+    won, reason = check_goal(world, scenario.goal)
+    assert won, f"{scenario_file} debería resolverse con la secuencia óptima: {reason}"
+
+
+def test_scenarios_cover_all_difficulties() -> None:
+    """La carpeta `scenarios/` ofrece al menos un escenario por nivel de dificultad."""
+    scenarios = list_scenarios(SCENARIOS_DIR)
+    by_diff = {sc.difficulty for sc in scenarios}
+    expected = {"easy", "medium", "hard", "extreme"}
+    assert expected.issubset(by_diff), (
+        f"faltan dificultades: {expected} - {by_diff} = {expected - by_diff}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Resolver de la CLI
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "spec,expected_id",
+    [
+        ("easy", "study-with-key"),
+        ("medium", "color-locks"),
+        ("hard", "library-search"),
+        ("extreme", "extreme-archive"),
+        ("study-with-key", "study-with-key"),
+        ("color-locks", "color-locks"),
+        ("library-search", "library-search"),
+        ("extreme-archive", "extreme-archive"),
+        ("apartment-keys", "apartment-keys"),
+        ("office-sequence", "office-sequence"),
+    ],
+)
+def test_cli_resolver_finds_scenarios(spec: str, expected_id: str) -> None:
+    sc = _resolve_scenario(spec, SCENARIOS_DIR)
+    assert sc.id == expected_id
+
+
+def test_cli_resolver_difficulty_picks_first_by_filename() -> None:
+    """Con varios escenarios por dificultad, el resolver devuelve el de menor índice."""
+    # Hay dos `medium` (02-color-locks, 05-apartment-keys) y dos `hard`
+    # (03-library-search, 06-office-sequence). El resolver elige el primero
+    # por orden de nombre de fichero.
+    assert _resolve_scenario("medium", SCENARIOS_DIR).id == "color-locks"
+    assert _resolve_scenario("hard", SCENARIOS_DIR).id == "library-search"
+
+
+def test_cli_resolver_unknown_spec_raises() -> None:
+    with pytest.raises(SystemExit):
+        _resolve_scenario("no-existe", SCENARIOS_DIR)
+
+
+# ---------------------------------------------------------------------------
+# Navegación multi-sala (verbo `go`) — semántica de medium/hard
+# ---------------------------------------------------------------------------
+
+
+def _build_two_room_world() -> World:
+    items = {
+        "llave": Item(id="llave", name="llave", description="...", takeable=True),
+        "puerta": Item(
+            id="puerta",
+            name="puerta",
+            description="...",
+            locked={"requires_item": "llave"},
+            open_state="closed",
+        ),
+    }
+    rooms = {
+        "sala_a": Room(
+            id="sala_a",
+            name="Sala A",
+            description="...",
+            items=["puerta"],
+            exits={"norte": "sala_b"},
+        ),
+        "sala_b": Room(
+            id="sala_b",
+            name="Sala B",
+            description="...",
+            items=["llave"],
+            exits={"sur": "sala_a"},
+        ),
+    }
+    return World(rooms=rooms, items=items, current_room="sala_a")
+
+
+def test_make_world_tools_includes_go_only_with_exits() -> None:
+    single_room = _build_study_scenario().initial_world
+    assert "go" not in {sch.name for _, sch in make_world_tools(single_room)}
+
+    multi_room = _build_two_room_world()
+    assert "go" in {sch.name for _, sch in make_world_tools(multi_room)}
+
+
+def test_go_changes_current_room_and_logs_event() -> None:
+    world = _build_two_room_world()
+    assert world.event_log == ["enter:sala_a"]
+    msg = _tools(world)["go"](direction="norte")
+    assert "Sala B" in msg
+    assert world.current_room == "sala_b"
+    assert world.event_log == ["enter:sala_a", "enter:sala_b"]
+
+
+def test_go_invalid_direction_returns_error_and_does_not_move() -> None:
+    world = _build_two_room_world()
+    msg = _tools(world)["go"](direction="oeste")
+    assert "Error" in msg
+    assert world.current_room == "sala_a"
+
+
+def test_look_lists_available_exits() -> None:
+    world = _build_two_room_world()
+    out = _tools(world)["look"]()
+    assert "Salidas" in out
+    assert "norte" in out
+
+
+def test_item_not_visible_from_other_room() -> None:
+    """La llave de sala_b no es visible ni tomable desde sala_a."""
+    world = _build_two_room_world()
+    tools = _tools(world)
+    assert "Error" in tools["take"](item="llave")
+    tools["go"](direction="norte")
+    assert "Tomas" in tools["take"](item="llave")
+    assert "llave" in world.inventory
+
+
+# ---------------------------------------------------------------------------
+# Goals compuestos y de secuencia
+# ---------------------------------------------------------------------------
+
+
+def test_goal_agent_in_room_and_item_in_inventory() -> None:
+    world = _build_two_room_world()
+    assert check_goal(world, {"type": "agent_in_room", "room": "sala_b"})[0] is False
+    _tools(world)["go"](direction="norte")
+    assert check_goal(world, {"type": "agent_in_room", "room": "sala_b"})[0] is True
+
+    assert (
+        check_goal(world, {"type": "item_in_inventory", "item": "llave"})[0] is False
+    )
+    _tools(world)["take"](item="llave")
+    assert check_goal(world, {"type": "item_in_inventory", "item": "llave"})[0] is True
+
+
+def test_goal_all_of_requires_every_subgoal() -> None:
+    world = _build_two_room_world()
+    goal = {
+        "type": "all_of",
+        "goals": [
+            {"type": "item_in_inventory", "item": "llave"},
+            {"type": "item_open", "item": "puerta"},
+        ],
+    }
+    tools = _tools(world)
+    assert check_goal(world, goal)[0] is False
+    tools["go"](direction="norte")
+    tools["take"](item="llave")
+    assert check_goal(world, goal)[0] is False, "falta abrir la puerta"
+    tools["go"](direction="sur")
+    tools["use"](item="llave", target="puerta")
+    assert check_goal(world, goal)[0] is True
+
+
+def test_goal_any_of_passes_with_one_subgoal() -> None:
+    world = _build_two_room_world()
+    goal = {
+        "type": "any_of",
+        "goals": [
+            {"type": "item_open", "item": "puerta"},
+            {"type": "agent_in_room", "room": "sala_b"},
+        ],
+    }
+    assert check_goal(world, goal)[0] is False
+    _tools(world)["go"](direction="norte")
+    assert check_goal(world, goal)[0] is True
+
+
+def test_multi_item_lock_opens_only_when_all_pieces_inserted() -> None:
+    items = {
+        "a": Item(id="a", name="pieza A", description="...", takeable=True),
+        "b": Item(id="b", name="pieza B", description="...", takeable=True),
+        "x": Item(id="x", name="pieza X", description="...", takeable=True),
+        "panel": Item(
+            id="panel",
+            name="panel",
+            description="...",
+            locked={"requires_items": ["a", "b"]},
+            open_state="closed",
+        ),
+    }
+    rooms = {
+        "s": Room(id="s", name="S", description="...", items=["a", "b", "x", "panel"])
+    }
+    world = World(rooms=rooms, items=items, current_room="s")
+    tools = _tools(world)
+    for piece in ("a", "b", "x"):
+        tools["take"](item=piece)
+
+    assert "no encaja" in tools["use"](item="x", target="panel").lower()
+    assert world.items["panel"].open_state == "closed"
+
+    msg_a = tools["use"](item="a", target="panel")
+    assert "falta" in msg_a.lower()
+    assert world.items["panel"].open_state == "closed"
+
+    msg_b = tools["use"](item="b", target="panel")
+    assert "abre" in msg_b.lower()
+    assert world.items["panel"].open_state == "open"
+
+
+def test_locked_exit_blocks_until_gate_opened() -> None:
+    items = {
+        "llave": Item(id="llave", name="llave", description="...", takeable=True),
+        "porton": Item(
+            id="porton",
+            name="portón",
+            description="...",
+            locked={"requires_item": "llave"},
+            open_state="closed",
+        ),
+    }
+    rooms = {
+        "s1": Room(
+            id="s1",
+            name="S1",
+            description="...",
+            items=["llave", "porton"],
+            exits={"norte": "s2"},
+            locked_exits={"norte": "porton"},
+        ),
+        "s2": Room(id="s2", name="S2", description="...", exits={"sur": "s1"}),
+    }
+    world = World(rooms=rooms, items=items, current_room="s1")
+    tools = _tools(world)
+
+    blocked = tools["go"](direction="norte")
+    assert "Error" in blocked and "bloqueado" in blocked.lower()
+    assert world.current_room == "s1"
+
+    tools["take"](item="llave")
+    tools["use"](item="llave", target="porton")
+    assert "Llegas" in tools["go"](direction="norte")
+    assert world.current_room == "s2"
+
+
+def test_goal_sequence_enforces_order() -> None:
+    """`sequence` falla si las condiciones se cumplen en el orden equivocado."""
+    goal = {
+        "type": "sequence",
+        "goals": [
+            {"type": "item_in_inventory", "item": "llave"},
+            {"type": "item_open", "item": "puerta"},
+        ],
+    }
+
+    # Orden correcto: tomar la llave ANTES de abrir la puerta.
+    world = _build_two_room_world()
+    tools = _tools(world)
+    tools["go"](direction="norte")
+    tools["take"](item="llave")
+    tools["go"](direction="sur")
+    tools["use"](item="llave", target="puerta")
+    assert check_goal(world, goal)[0] is True
+
+    # Mismo estado final, pero el `event_log` revela el orden: aquí no hay
+    # forma física de abrir antes de tomar, así que validamos el chequeo de
+    # orden con un log manipulado.
+    world2 = _build_two_room_world()
+    world2.inventory.append("llave")
+    world2.items["puerta"].open_state = "open"
+    world2.event_log = ["enter:sala_a", "open:puerta", "take:llave"]
+    won, reason = check_goal(world2, goal)
+    assert won is False
+    assert "orden" in reason
+
+
+===== ./mia_agents/tool_schema.py =====
+
+"""Generación de `ToolSchema` desde callables (`Annotated` + Pydantic).
+
+El agente registra `ToolSchema.from_callable(fn)` y en cada `chat` pasa
+los `ToolSchema` al `LLMClient`; `_format_tools` aplica `to_llm_spec()`.
+"""
+
+from __future__ import annotations
+
+import inspect
+import re
+from typing import Any, get_type_hints
+
+from pydantic import BaseModel, Field, create_model
+
+from mia_agents.types import ToolSchema
+
+# Nombre fijo de la herramienta sintética de cierre en `structured_call` (M2).
+FINAL_RESULT_TOOL_NAME = "final_result"
+
+
+def _tool_description_from_docstring(doc: str | None) -> str:
+    """Docstring completo (cleandoc): una sola fuente de verdad para el LLM."""
+    if not doc:
+        return ""
+    return inspect.cleandoc(doc).strip()
+
+
+def _input_model_from_callable(fn: Any) -> type[BaseModel]:
+    """Construye un modelo Pydantic a partir de la firma del callable."""
+    hints = get_type_hints(fn, include_extras=True)
+    sig = inspect.signature(fn)
+    fields: dict[str, Any] = {}
+
+    for pname, param in sig.parameters.items():
+        if param.kind in (
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        ):
+            raise TypeError(
+                f"{fn.__name__} no puede usar *args ni **kwargs en herramientas."
+            )
+        annotation = hints.get(pname, str)
+        if param.default is inspect.Parameter.empty:
+            fields[pname] = (annotation, Field())
+        else:
+            fields[pname] = (annotation, Field(default=param.default))
+
+    safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", fn.__name__).strip("_") or "Tool"
+    if not fields:
+        return create_model(f"{safe_name}_Input")
+    return create_model(f"{safe_name}_Input", **fields)
+
+
+def parameters_json_schema(model: type[BaseModel]) -> dict[str, Any]:
+    """JSON Schema de entrada listo para `ToolSchema.parameters`."""
+    schema = model.model_json_schema()
+    schema.pop("$schema", None)
+    return schema
+
+
+def tool_schema_from_callable(
+    fn: Any,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+) -> ToolSchema:
+    """Arma un `ToolSchema` a partir de anotaciones y docstring del callable.
+
+    Convenciones:
+      - Tipos en la firma (`str`, `int`, ...) → tipos JSON.
+      - `Annotated[..., Field(description="...")]` → descripción por parámetro.
+      - Docstring completo → descripción de la herramienta.
+      - `name` por defecto: `fn.__name__`.
+    """
+    model = _input_model_from_callable(fn)
+    tool_description = (
+        description
+        if description is not None
+        else _tool_description_from_docstring(inspect.getdoc(fn))
+    )
+    if not tool_description:
+        tool_description = f"Herramienta {fn.__name__}."
+
+    return ToolSchema(
+        name=name or fn.__name__,
+        description=tool_description,
+        parameters=parameters_json_schema(model),
+    )
+
+
+def tool_schema_from_model(
+    model: type[BaseModel],
+    *,
+    name: str,
+    description: str,
+) -> ToolSchema:
+    """Arma un `ToolSchema` desde un `BaseModel` ya definido (M2+)."""
+    return ToolSchema(
+        name=name,
+        description=description,
+        parameters=parameters_json_schema(model),
+    )
+
+
+def final_result_tool_schema(schema: type[BaseModel]) -> ToolSchema:
+    """Esquema de la tool sintética obligatoria para cerrar `structured_call`."""
+    return tool_schema_from_model(
+        schema,
+        name=FINAL_RESULT_TOOL_NAME,
+        description=(
+            "Devuelve la respuesta final estructurada. Debes invocar esta "
+            "herramienta (y solo esta) para terminar; no respondas con texto libre."
+        ),
+    )
+
+
+===== ./mia_agents/llm_client.py =====
+
+"""Cliente LLM por defecto — wrapper fino sobre Bedrock y Ollama.
+
+Este archivo es FIJO. No lo edites. Su única responsabilidad es traducir
+entre el formato de mensajes del framework y la API del proveedor.
+
+Toda la lógica interesante del framework — bucle del agente, gestión de
+memoria, reintentos ante fallos transitorios, validación y reparación de
+salida estructurada, logging — debe vivir **en el agente**, no aquí. De
+otro modo los tests de conformidad, que sustituyen este cliente por
+`MockLLMClient`, no podrán ejercitarla y no contará para la nota.
+
+El andamiaje incluye proveedores para AWS Bedrock y Ollama. Si necesitan
+un proveedor distinto, NO modifiquen este archivo. En su lugar:
+
+    1. Implementen su propia clase en `student_framework/` que satisfaga
+       el protocolo `mia_agents.protocols.LLMClient` (un único método
+       `chat(...) -> LLMResponse`).
+    2. Pásenla al agente vía configuración:
+
+        agent = build_agent({"llm_client": my_custom_client})
+
+El propio `MockLLMClient` que usan los tests es un ejemplo de esa misma
+sustitución por protocolo.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import uuid
+from abc import ABC, abstractmethod
+from typing import Any
+
+import boto3
+import ollama
+
+from mia_agents._env import load_env_files
+from mia_agents.types import LLMResponse, ToolCall, ToolSchema
+
+# Cada entrada: ToolSchema (recomendado) o dict ya normalizado con to_llm_spec().
+ToolSpecInput = ToolSchema | dict[str, Any]
+
+
+class _BaseLLMProvider(ABC):
+    """Lógica compartida entre proveedores; cada subclase adapta mensajes y tools."""
+
+    @abstractmethod
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[ToolSpecInput] | None = None,
+        system: str | None = None,
+        temperature: float = 0.2,
+        response_format: dict[str, Any] | None = None,
+    ) -> LLMResponse: ...
+
+    @staticmethod
+    def _tool_specs_as_dicts(
+        tools: list[ToolSpecInput] | None,
+    ) -> list[dict[str, Any]]:
+        """`ToolSchema` → dict con name, description, parameters (JSON Schema)."""
+        if not tools:
+            return []
+        specs: list[dict[str, Any]] = []
+        for tool in tools:
+            if isinstance(tool, ToolSchema):
+                specs.append(tool.to_llm_spec())
+            else:
+                specs.append(tool)
+        return specs
+
+    @staticmethod
+    def _parameters_from_spec(spec: dict[str, Any]) -> dict[str, Any]:
+        return spec.get("parameters", {"type": "object", "properties": {}})
+
+    @classmethod
+    def _format_tools(cls, tools: list[ToolSpecInput]) -> list[dict[str, Any]]:
+        return [
+            cls._wrap_tool_spec(spec)
+            for spec in cls._tool_specs_as_dicts(tools)
+        ]
+
+    @staticmethod
+    @abstractmethod
+    def _wrap_tool_spec(spec: dict[str, Any]) -> dict[str, Any]:
+        """Un tool en el formato nativo del proveedor (Ollama vs Bedrock Converse)."""
+        ...
+
+
+def _pick(obj: Any, name: str, default: Any = None) -> Any:
+    """Lee un campo del objeto, sea atributo (Pydantic) o clave (dict).
+
+    Las respuestas del SDK de Ollama pueden volver como modelos Pydantic
+    o como dicts en versiones distintas. Este helper aísla esa ambigüedad
+    para que el resto del código se centre en QUÉ campo queremos, no en
+    CÓMO está envuelto. Solo considera "ausente" si el atributo es None;
+    valores falsos pero presentes (0, "", []) se devuelven tal cual.
+    """
+    val = getattr(obj, name, None)
+    if val is not None:
+        return val
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    return default
+
+
+def _arguments_to_dict(raw_args: Any) -> dict[str, Any]:
+    """Coacciona un campo `arguments` de tool call a dict (para Ollama saliente).
+
+    Nuestro `ToolCall.arguments` interno es un string JSON; el formato de
+    Ollama exige dict. Algunas fuentes nos lo dan ya como dict (e.g. al
+    re-enviar historial recién construido). Aceptamos cualquiera de los
+    dos. JSON malformado o ausente cae a {} en lugar de propagar el error.
+    """
+    if isinstance(raw_args, str):
+        if not raw_args:
+            return {}
+        try:
+            return json.loads(raw_args)
+        except json.JSONDecodeError:
+            return {}
+    return raw_args or {}
+
+
+def _arguments_to_json_string(raw_args: Any) -> str:
+    """Serializa un campo `arguments` (Ollama entrante) a string JSON.
+
+    Es la inversa de `_arguments_to_dict`: para `ToolCall.arguments` queremos
+    siempre un string. La mayoría de modelos Ollama emiten dict; algunos
+    emiten string ya serializado, que pasamos tal cual.
+    """
+    if isinstance(raw_args, dict):
+        return json.dumps(dict(raw_args), ensure_ascii=False)
+    if isinstance(raw_args, str):
+        return raw_args
+    return json.dumps(raw_args)
+
+
+def _provider_raw_response(resp: Any) -> dict[str, Any] | None:
+    """Payload crudo del proveedor (dict o Pydantic); None si no es serializable."""
+    if isinstance(resp, dict):
+        return resp
+    model_dump = getattr(resp, "model_dump", None)
+    if callable(model_dump):
+        return model_dump()
+    return None
+
+
+class OllamaProvider(_BaseLLMProvider):
+    """Cliente nativo para un servidor Ollama local (o remoto).
+
+    Usa el SDK oficial `ollama` y soporta:
+      - Mensajes multi-turno con tool calls (los models de Ollama compatibles
+        emiten tool_calls; nosotros sintetizamos un `id` por llamada porque
+        Ollama no lo expone).
+      - Modo de salida estructurada: `response_format` recibe un JSON
+        Schema y se pasa como `format` a Ollama.
+      - Contexto configurable: el valor por defecto de Ollama (~2048) es
+        insuficiente para nuestros escenarios; aquí usamos 16384 salvo
+        que se pase otro a `num_ctx`.
+
+    Variables de entorno:
+      - `OLLAMA_HOST`: host del servidor (defecto: http://localhost:11434).
+      - `OLLAMA_MODEL`: modelo (defecto: llama3.1).
+
+    El payload crudo del SDK va en `LLMResponse.raw_response` (p. ej.
+    `done_reason`); no forma parte del contrato normalizado del agente.
+    """
+
+    def __init__(
+        self,
+        model: str | None = None,
+        host: str | None = None,
+        num_ctx: int = 16384,
+        default_format: dict[str, Any] | None = None,
+    ) -> None:
+        self._client = ollama.Client(
+            host=host or os.environ.get("OLLAMA_HOST") or "http://localhost:11434"
+        )
+        self._model = model or os.environ.get("OLLAMA_MODEL", "llama3.1")
+        self._num_ctx = num_ctx
+        self._default_format = default_format
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[ToolSpecInput] | None = None,
+        system: str | None = None,
+        temperature: float = 0.2,
+        response_format: dict[str, Any] | None = None,
+    ) -> LLMResponse:
+        normalized = self._normalize_messages(messages, system)
+        ollama_tools = self._format_tools(tools) if tools else None
+
+        fmt: dict[str, Any] | None = (
+            response_format if response_format is not None else self._default_format
+        )
+
+        kwargs: dict[str, Any] = {
+            "model": self._model,
+            "messages": normalized,
+            "options": {"temperature": temperature, "num_ctx": self._num_ctx},
+        }
+        if ollama_tools:
+            kwargs["tools"] = ollama_tools
+        if fmt is not None:
+            kwargs["format"] = fmt
+
+        resp = self._client.chat(**kwargs)
+        return self._to_llm_response(resp)
+
+    # -- internos --------------------------------------------------------
+
+    @staticmethod
+    def _normalize_messages(
+        messages: list[dict[str, Any]], system: str | None
+    ) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
+        if system:
+            out.append({"role": "system", "content": system})
+        for m in messages:
+            role = m.get("role")
+            if role == "system":
+                # Si el agente embebe system en la lista, lo ignoramos:
+                # ya lo hemos antepuesto via el parámetro `system`.
+                continue
+            if role == "tool":
+                out.append({"role": "tool", "content": str(m.get("content", ""))})
+                continue
+            if role == "assistant" and m.get("tool_calls"):
+                tcs = [
+                    {
+                        "function": {
+                            "name": tc.get("function", {}).get("name", ""),
+                            "arguments": _arguments_to_dict(
+                                tc.get("function", {}).get("arguments")
+                            ),
+                        }
+                    }
+                    for tc in m["tool_calls"]
+                ]
+                out.append(
+                    {
+                        "role": "assistant",
+                        "content": m.get("content") or "",
+                        "tool_calls": tcs,
+                    }
+                )
+                continue
+            # Caso por defecto: pasar role + content tal cual.
+            out.append(
+                {"role": role or "user", "content": m.get("content", "") or ""}
+            )
+        return out
+
+    @staticmethod
+    def _wrap_tool_spec(spec: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "type": "function",
+            "function": {
+                "name": spec["name"],
+                "description": spec.get("description", ""),
+                "parameters": _BaseLLMProvider._parameters_from_spec(spec),
+            },
+        }
+
+    @staticmethod
+    def _to_llm_response(resp: Any) -> LLMResponse:
+        # `resp` puede ser un Pydantic `ChatResponse` (ollama >= 0.4) o un
+        # dict en versiones futuras; `_pick` aísla esa diferencia.
+        msg = _pick(resp, "message")
+        if msg is None:
+            return LLMResponse(
+                content=None,
+                tool_calls=[],
+                raw_response=_provider_raw_response(resp),
+            )
+
+        tool_calls: list[ToolCall] = []
+        for tc in _pick(msg, "tool_calls") or []:
+            fn = _pick(tc, "function")
+            if fn is None:
+                continue
+            tool_calls.append(
+                ToolCall(
+                    # Ollama no emite tool_call_id; lo sintetizamos para
+                    # que el agente pueda referenciarlo en turnos siguientes.
+                    id=_pick(tc, "id") or f"call_{uuid.uuid4().hex[:8]}",
+                    name=_pick(fn, "name") or "",
+                    arguments=_arguments_to_json_string(
+                        _pick(fn, "arguments", default={})
+                    ),
+                )
+            )
+
+        content = _pick(msg, "content")
+        return LLMResponse(
+            content=content or None,  # "" -> None: vacío == sin texto
+            tool_calls=tool_calls,
+            input_tokens=_pick(resp, "prompt_eval_count"),
+            output_tokens=_pick(resp, "eval_count"),
+            raw_response=_provider_raw_response(resp),
+        )
+
+
+class BedrockProvider(_BaseLLMProvider):
+    """Cliente nativo para AWS Bedrock vía la API Converse.
+
+    Usa `boto3` con la cadena estándar de credenciales: lee
+    `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y, opcionalmente,
+    `AWS_SESSION_TOKEN` del entorno (compatibles con setups SSO/STS).
+
+    La API Converse normaliza el formato de mensajes de la familia Amazon
+    Nova y otros modelos Bedrock compatibles con tool use.
+
+    Variables de entorno:
+      - `BEDROCK_MODEL_ID`: id completo del modelo
+        (e.g. `amazon.nova-lite-v1:0`).
+      - `AWS_REGION` / `AWS_DEFAULT_REGION`: región (defecto: `us-east-1`).
+
+    `response_format` forma parte del protocolo `LLMClient` pero **no**
+    lo implementa este provider: en M2 `structured_call` usa la tool
+    `final_result`; Ollama sí pasa
+    `response_format` al `format` nativo.
+
+    El payload crudo de Converse va en
+    `LLMResponse.raw_response` (p. ej. `stopReason`); no forma parte del
+    contrato normalizado del agente.
+    """
+
+    def __init__(
+        self,
+        model: str | None = None,
+        region: str | None = None,
+        max_tokens: int = 4096,
+    ) -> None:
+        self._model = model or os.environ.get("BEDROCK_MODEL_ID")
+        if not self._model:
+            raise RuntimeError(
+                "Define BEDROCK_MODEL_ID o pásalo como argumento al "
+                "constructor de BedrockProvider."
+            )
+        self._region = (
+            region
+            or os.environ.get("AWS_REGION")
+            or os.environ.get("AWS_DEFAULT_REGION")
+            or "us-east-1"
+        )
+        self._max_tokens = max_tokens
+        self._client = boto3.client("bedrock-runtime", region_name=self._region)
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[ToolSpecInput] | None = None,
+        system: str | None = None,
+        temperature: float = 0.2,
+        response_format: dict[str, Any] | None = None,
+    ) -> LLMResponse:
+        kwargs: dict[str, Any] = {
+            "modelId": self._model,
+            "messages": self._normalize_messages(messages),
+            "inferenceConfig": {
+                "maxTokens": self._max_tokens,
+                "temperature": temperature,
+            },
+        }
+        if system:
+            kwargs["system"] = [{"text": system}]
+        if tools:
+            kwargs["toolConfig"] = {"tools": self._format_tools(tools)}
+
+        resp = self._client.converse(**kwargs)
+        return self._to_llm_response(resp)
+
+    # -- internos --------------------------------------------------------
+
+    @staticmethod
+    def _normalize_messages(
+        messages: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Traduce el historial interno al formato Converse.
+
+        Mapeo:
+          user                     -> {role: user, content: [{text: ...}]}
+          assistant (texto)        -> {role: assistant, content: [{text: ...}]}
+          assistant (+ tool_calls) -> bloques {text} y {toolUse}
+          tool (resultado)         -> agrupa N resultados consecutivos en
+                                       UN user msg con {toolResult} blocks
+                                       (Converse exige que los resultados
+                                       sigan inmediatamente al toolUse)
+        """
+        out: list[dict[str, Any]] = []
+        i = 0
+        while i < len(messages):
+            m = messages[i]
+            role = m.get("role")
+            if role == "system":
+                i += 1
+                continue
+            if role == "user":
+                out.append(
+                    {"role": "user", "content": [{"text": m.get("content") or ""}]}
+                )
+                i += 1
+                continue
+            if role == "assistant":
+                blocks: list[dict[str, Any]] = []
+                text = m.get("content") or ""
+                if text:
+                    blocks.append({"text": text})
+                for tc in m.get("tool_calls") or []:
+                    fn = tc.get("function", {})
+                    blocks.append(
+                        {
+                            "toolUse": {
+                                "toolUseId": tc.get("id")
+                                or f"call_{uuid.uuid4().hex[:8]}",
+                                "name": fn.get("name", ""),
+                                "input": _arguments_to_dict(fn.get("arguments")),
+                            }
+                        }
+                    )
+                if blocks:
+                    out.append({"role": "assistant", "content": blocks})
+                i += 1
+                # Agrupar mensajes 'tool' consecutivos en un único user msg.
+                tool_blocks: list[dict[str, Any]] = []
+                while i < len(messages) and messages[i].get("role") == "tool":
+                    tm = messages[i]
+                    tool_blocks.append(
+                        {
+                            "toolResult": {
+                                "toolUseId": tm.get("tool_call_id", ""),
+                                "content": [
+                                    {"text": str(tm.get("content", ""))}
+                                ],
+                            }
+                        }
+                    )
+                    i += 1
+                if tool_blocks:
+                    out.append({"role": "user", "content": tool_blocks})
+                continue
+            if role == "tool":
+                # tool huérfano (sin assistant previo). Lo envolvemos como
+                # user con toolResult para preservar la información.
+                out.append(
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "toolResult": {
+                                    "toolUseId": m.get("tool_call_id", ""),
+                                    "content": [
+                                        {"text": str(m.get("content", ""))}
+                                    ],
+                                }
+                            }
+                        ],
+                    }
+                )
+                i += 1
+                continue
+            # default: tratar como user con texto plano.
+            out.append(
+                {"role": role or "user", "content": [{"text": m.get("content") or ""}]}
+            )
+            i += 1
+        return out
+
+    @staticmethod
+    def _wrap_tool_spec(spec: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "toolSpec": {
+                "name": spec["name"],
+                "description": spec.get("description", ""),
+                "inputSchema": {"json": _BaseLLMProvider._parameters_from_spec(spec)},
+            }
+        }
+
+    @staticmethod
+    def _to_llm_response(resp: dict[str, Any]) -> LLMResponse:
+        message = (resp.get("output") or {}).get("message") or {}
+        blocks = message.get("content") or []
+
+        text_parts: list[str] = []
+        tool_calls: list[ToolCall] = []
+        for block in blocks:
+            if "text" in block:
+                text_parts.append(block["text"])
+            elif "toolUse" in block:
+                tu = block["toolUse"]
+                tool_calls.append(
+                    ToolCall(
+                        id=tu.get("toolUseId") or f"call_{uuid.uuid4().hex[:8]}",
+                        name=tu.get("name", ""),
+                        arguments=json.dumps(
+                            tu.get("input") or {}, ensure_ascii=False
+                        ),
+                    )
+                )
+
+        usage = resp.get("usage") or {}
+        return LLMResponse(
+            content="".join(text_parts) if text_parts else None,
+            tool_calls=tool_calls,
+            input_tokens=usage.get("inputTokens"),
+            output_tokens=usage.get("outputTokens"),
+            raw_response=_provider_raw_response(resp),
+        )
+
+
+class LLMClient:
+    """Wrapper liviano con un constructor estático `from_env()`."""
+
+    def __init__(self, provider: _BaseLLMProvider) -> None:
+        self._provider = provider
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[ToolSpecInput] | None = None,
+        system: str | None = None,
+        temperature: float = 0.2,
+        response_format: dict[str, Any] | None = None,
+    ) -> LLMResponse:
+        return self._provider.chat(
+            messages=messages,
+            tools=tools,
+            system=system,
+            temperature=temperature,
+            response_format=response_format,
+        )
+
+    @staticmethod
+    def from_env() -> "LLMClient":
+        # Levanta configuración de un `.env` (Bedrock/Ollama) si existe.
+        # No pisa variables ya presentes ni inyecta refs op:// sin resolver.
+        load_env_files()
+        # Cada proveedor se selecciona por su env var "específica":
+        # OLLAMA_HOST para local, BEDROCK_MODEL_ID para AWS Bedrock.
+        # Usar BEDROCK_MODEL_ID en lugar de solo AWS_ACCESS_KEY_ID evita
+        # falsos positivos cuando las credenciales AWS están en el
+        # entorno por otras razones (S3, CI/CD, etc.).
+        if os.environ.get("OLLAMA_HOST"):
+            return LLMClient(OllamaProvider())
+        if os.environ.get("BEDROCK_MODEL_ID"):
+            return LLMClient(BedrockProvider())
+        raise RuntimeError("Define OLLAMA_HOST o BEDROCK_MODEL_ID")
+
+
+===== ./mia_agents/cli.py =====
+
+"""Runner estandarizado por línea de comandos.
+
+Uso:
+    python -m mia_agents.cli run --module student_framework --message "¿Cuánto es 17 * 23?"
+
+Importa `<module>.build_agent`, ejecuta el agente con el mensaje indicado e
+imprime el `AgentResult` en formato JSON.
+"""
+
+from __future__ import annotations
+
+import argparse
+import importlib
+import json
+import sys
+from dataclasses import asdict
+
+from mia_agents.types import AgentResult
+
+
+def _run(module_name: str, message: str) -> AgentResult:
+    module = importlib.import_module(module_name)
+    if not hasattr(module, "build_agent"):
+        raise SystemExit(
+            f"El módulo {module_name!r} no exporta `build_agent`. "
+            "Toda entrega debe exponer `build_agent(config) -> Agent`."
+        )
+    agent = module.build_agent()
+    return agent.run(message)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="mia_agents")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    run = sub.add_parser("run", help="Ejecuta un agente con un único mensaje.")
+    run.add_argument(
+        "--module",
+        default="student_framework",
+        help="Módulo Python que expone `build_agent` (por defecto: student_framework).",
+    )
+    run.add_argument("--message", required=True, help="Mensaje del usuario a enviar.")
+
+    args = parser.parse_args(argv)
+
+    if args.cmd == "run":
+        result = _run(args.module, args.message)
+        print(json.dumps(asdict(result), indent=2, ensure_ascii=False))
+        return 0
+
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
+
+===== ./mia_agents/_env.py =====
+
+"""Carga de variables de entorno desde un archivo `.env` (sin dependencias).
+
+`mia_agents` usa esto para que `LLMClient.from_env()` levante la
+configuración de Bedrock/Ollama de un `.env` sin que el usuario tenga que
+exportar variables a mano.
+
+Política de seguridad (ver reglas del repo):
+  - **No** se pisan variables ya presentes en el entorno: si corrés con
+    `op run --env-file=.env -- ...`, los valores resueltos por 1Password
+    ganan y este loader no los toca.
+  - Los valores que son referencias `op://...` **sin resolver** se
+    ignoran: nunca se inyecta un literal `op://` como si fuera un secreto.
+    Para resolverlos, usá `op run --env-file=.env -- <comando>`.
+
+Búsqueda del `.env` (primer match gana por clave, sin pisar):
+  1. La ruta en `MIA_ENV_FILE`, si está definida.
+  2. `.env` en el cwd y hasta 4 directorios hacia arriba.
+  3. `.env` en la raíz del scaffold (el directorio padre de este paquete).
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+_LOADED = False
+
+
+def _candidate_paths() -> list[Path]:
+    paths: list[Path] = []
+    explicit = os.environ.get("MIA_ENV_FILE")
+    if explicit:
+        paths.append(Path(explicit))
+    cwd = Path.cwd()
+    for directory in [cwd, *list(cwd.parents)[:4]]:
+        paths.append(directory / ".env")
+    # Raíz del scaffold: padre del paquete mia_agents. Garantiza que el
+    # `.env` se encuentre aunque el proceso corra desde otro directorio
+    # (p. ej. el runner de eval en implementacion_ejemplo/M3).
+    paths.append(Path(__file__).resolve().parent.parent / ".env")
+
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for path in paths:
+        resolved = path.expanduser()
+        try:
+            resolved = resolved.resolve()
+        except OSError:
+            continue
+        if resolved not in seen:
+            seen.add(resolved)
+            unique.append(resolved)
+    return unique
+
+
+def _parse_line(line: str) -> tuple[str, str] | None:
+    line = line.strip()
+    if not line or line.startswith("#"):
+        return None
+    if line.startswith("export "):
+        line = line[len("export ") :].lstrip()
+    if "=" not in line:
+        return None
+    key, _, value = line.partition("=")
+    key = key.strip()
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        value = value[1:-1]
+    if not key:
+        return None
+    return key, value
+
+
+def load_env_files(force: bool = False) -> None:
+    """Carga el primer `.env` encontrado en `os.environ` (idempotente)."""
+    global _LOADED
+    if _LOADED and not force:
+        return
+    _LOADED = True
+
+    for path in _candidate_paths():
+        if not path.is_file():
+            continue
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for raw_line in content.splitlines():
+            parsed = _parse_line(raw_line)
+            if parsed is None:
+                continue
+            key, value = parsed
+            if key in os.environ:
+                continue  # el entorno real (o `op run`) tiene prioridad
+            if value.startswith("op://"):
+                continue  # referencia 1Password sin resolver: la resuelve `op run`
+            os.environ[key] = value
+
+
+===== ./mia_agents/file_reader.py =====
+
+"""Herramienta para leer archivos de texto."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Annotated
+
+from pydantic import Field
+
+from mia_agents.types import ToolSchema
+
+
+def file_reader(
+    file_path: Annotated[str, Field(description="La ruta del archivo de texto a leer.")],
+) -> str:
+    """Lee y devuelve el contenido de un archivo de texto.
+
+    Solo lee archivos de texto con codificación UTF-8.
+    """
+    if not file_path:
+        return "Error: la ruta está vacía. Proporciona una ruta relativa válida."
+
+    if file_path.startswith("/"):
+        return "Error: no se permiten rutas absolutas. Usa rutas relativas."
+
+    if ".." in file_path:
+        return "Error: no se permiten '..' en la ruta. Usa rutas relativas sin escapar."
+
+    path = Path(file_path)
+    try:
+        if not path.exists():
+            parent_dir = path.parent
+            if parent_dir.exists() and parent_dir.is_dir():
+                try:
+                    files = [f.name for f in parent_dir.iterdir() if f.is_file()]
+                    return f"Error: el archivo '{file_path}' no existe. Archivos disponibles en '{parent_dir}': {files}"
+                except Exception:
+                    return f"Error: el archivo '{file_path}' no existe."
+            else:
+                return f"Error: el archivo '{file_path}' no existe."
+
+        if path.is_dir():
+            try:
+                files = [f.name for f in path.iterdir() if f.is_file()]
+                return f"Error: '{file_path}' es un directorio, no un archivo. Archivos dentro: {files}"
+            except Exception:
+                return f"Error: '{file_path}' es un directorio, no un archivo."
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return content
+    except UnicodeDecodeError:
+        return f"Error: el archivo '{file_path}' no es texto válido (UTF-8)."
+    except Exception as e:
+        return f"Error al leer '{file_path}': {str(e)}"
+
+
+file_reader_schema = ToolSchema.from_callable(file_reader)
+
+
+===== ./mia_agents/protocols.py =====
+
+"""Protocolos fijos.
+
+Cualquier agente entregado para evaluación debe satisfacer `Agent`. El
+runner de la CLI y todos los tests de conformidad dependen de estas firmas.
+"""
+
+from __future__ import annotations
+
+from typing import Any, Callable, Protocol, TypeVar, runtime_checkable
+
+from mia_agents.types import AgentResult, LLMResponse, ToolSchema
+
+# Re-export para anotar implementaciones de LLMClient.
+ToolSpecInput = ToolSchema | dict[str, Any]
+
+
+_TSchema = TypeVar("_TSchema")
+
+
+@runtime_checkable
+class LLMClient(Protocol):
+    """Wrapper de una sola llamada sobre un proveedor de LLM.
+
+    `tools` es una lista de `ToolSchema` (recomendado) o dicts con
+    `name`, `description` y `parameters`. El cliente LLM aplica
+    `to_llm_spec()` al llamar al proveedor.
+
+    `response_format` recibe un JSON Schema representado como `dict`.
+    Cuando se pasa, el proveedor debe pedirle al modelo una respuesta JSON
+    que respete ese schema. El agente sigue siendo responsable de validar
+    la salida si necesita garantías fuertes.
+    """
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[ToolSpecInput] | None = None,
+        system: str | None = None,
+        temperature: float = 0.2,
+        response_format: dict[str, Any] | None = None,
+    ) -> LLMResponse: ...
+
+
+@runtime_checkable
+class Agent(Protocol):
+    """Contrato que toda entrega debe implementar.
+
+    `register_tool` recibe un callable y un `ToolSchema` (típicamente
+    `ToolSchema.from_callable(fn)`). En cada `run`, el agente expone al LLM
+    `tools=list(schemas)` en `chat` — el cliente aplica `to_llm_spec()`.
+    El callable se invoca con kwargs alineados a esa firma y devuelve str.
+
+    `run` recibe un único mensaje del usuario y devuelve un `AgentResult`.
+
+    Estado de la conversación:
+      - M1: cada llamada a `run` se trata como una interacción
+        independiente (sin estado persistente entre llamadas).
+      - M2: el agente es *estatal*. Llamadas sucesivas a `run` sobre la
+        misma instancia continúan la conversación. La gestión del
+        historial (resumen, recorte, ventana, recuperación, etc.) es
+        responsabilidad del agente.
+    """
+
+    def register_tool(
+        self,
+        tool: Callable[..., str],
+        schema: ToolSchema,
+    ) -> None: ...
+
+    def run(self, user_message: str) -> AgentResult: ...
+
+    def structured_call(
+        self,
+        prompt: str,
+        schema: type[_TSchema],
+        max_repair_attempts: int = 2,
+    ) -> _TSchema:
+        """Pide al LLM una respuesta estructurada validada contra `schema`.
+
+        M2: el agente recibe un `prompt` y una clase `schema` (típicamente
+        un `pydantic.BaseModel`), llama al LLM y devuelve una instancia
+        de `schema` con la salida parseada y validada. Si el LLM produce
+        salida malformada, debe reintentar dándole contexto del fallo
+        (modo de reparación) hasta `max_repair_attempts` veces antes de
+        levantar una excepción.
+
+        M2 exige la herramienta sintética `final_result`
+        (`mia_agents.tool_schema.FINAL_RESULT_TOOL_NAME`): el agente la
+        ofrece al LLM con un `ToolSchema` derivado de `schema`, valida los
+        `arguments` del tool call y reintenta con contexto de reparación si
+        falla. No se acepta cerrar con texto libre en `content`.
+        El contrato observable: devolver instancia válida o levantar
+        limpiamente tras agotar reintentos.
+
+        En el M1 se acepta como stub (`NotImplementedError`); el contrato
+        se verifica en los tests de M2. El bucle de `run(...)` en M1/M2
+        sigue cerrando con texto sin `tool_calls` salvo que documenten
+        una extensión propia con `final_result` en `run`.
+        """
+        ...
+
+
+===== ./mia_agents/__init__.py =====
+
+"""mia_agents: interfaces fijas y tipos compartidos para el trabajo del curso.
+
+Los estudiantes no deben editar nada en este paquete. Su implementación vive
+en `student_framework/` y debe respetar los protocolos y dataclasses
+definidos aquí.
+"""
+
+from mia_agents.types import (
+    AgentResult,
+    AgentStep,
+    LLMResponse,
+    ToolCall,
+    ToolSchema,
+)
+from mia_agents.protocols import Agent, LLMClient
+from mia_agents.tool_schema import FINAL_RESULT_TOOL_NAME, final_result_tool_schema
+
+__all__ = [
+    "Agent",
+    "AgentResult",
+    "AgentStep",
+    "FINAL_RESULT_TOOL_NAME",
+    "LLMClient",
+    "LLMResponse",
+    "ToolCall",
+    "ToolSchema",
+    "final_result_tool_schema",
+]
+
+
+===== ./mia_agents/types.py =====
+
+"""Dataclasses fijas compartidas por todas las entregas.
+
+No editar. La infraestructura de evaluación importa estas clases
+directamente y asume que sus campos y formas son estables.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+
+@dataclass
+class ToolCall:
+    """Una invocación de herramienta solicitada por el LLM."""
+
+    id: str
+    name: str
+    arguments: str  # codificado en JSON
+
+
+@dataclass
+class LLMResponse:
+    """Respuesta normalizada (independiente del proveedor) de una llamada al LLM.
+
+    Campos para el bucle del agente: `content`, `tool_calls`, `input_tokens`,
+    `output_tokens`. Metadatos del proveedor (p. ej. `stopReason`,
+    `done_reason`) viven solo en `raw_response` para depuración.
+    """
+
+    content: str | None
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    raw_response: dict[str, Any] | None = None
+
+
+@dataclass
+class ToolSchema:
+    """Descripción de una herramienta que el LLM puede invocar.
+
+    Vive en el **agente** (`register_tool`). Pasá la lista de
+    `ToolSchema` a `LLMClient.chat(..., tools=...)`; el cliente aplica
+    `to_llm_spec()` al formatear para Ollama/Bedrock.
+
+    Creá cada esquema con `ToolSchema.from_callable(fn)` (firma con
+    `Annotated` + `Field` + docstring). No hace falta armar `parameters`
+    a mano.
+    """
+
+    name: str
+    description: str
+    parameters: dict[str, Any]
+
+    @classmethod
+    def from_callable(
+        cls,
+        fn: Any,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+    ) -> ToolSchema:
+        """Deriva nombre, descripción y `parameters` desde la firma Python."""
+        from mia_agents.tool_schema import tool_schema_from_callable
+
+        return tool_schema_from_callable(fn, name=name, description=description)
+
+    @classmethod
+    def from_model(
+        cls,
+        model: Any,
+        *,
+        name: str,
+        description: str,
+    ) -> ToolSchema:
+        """Deriva `parameters` desde un `pydantic.BaseModel`."""
+        from mia_agents.tool_schema import tool_schema_from_model
+
+        return tool_schema_from_model(model, name=name, description=description)
+
+    def to_llm_spec(self) -> dict[str, Any]:
+        """Dict con name/description/parameters; lo usa `llm_client._format_tools`."""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "parameters": self.parameters,
+        }
+
+
+@dataclass
+class AgentStep:
+    """Una iteración del bucle del agente en la que se invocó una herramienta."""
+
+    tool_name: str | None
+    tool_input: str | None
+    tool_output: str | None
+    error: str | None = None
+
+
+@dataclass
+class AgentResult:
+    """Resultado final de `Agent.run`.
+
+    `input_tokens` / `output_tokens` reflejan los totales acumulados por
+    el agente a partir de los `LLMResponse` recibidos durante esta
+    llamada a `run`. Permanecen `None` si ningún `LLMResponse` reportó
+    tokens (p. ej. `MockLLMClient` sin tokens programados); de lo
+    contrario, suman lo reportado tratando `None` por respuesta como 0.
+    Sub-agentes invocados por herramientas NO se contabilizan aquí
+    (sus tokens viven en su propio `AgentResult`).
+    """
+
+    answer: str
+    steps: list[AgentStep] = field(default_factory=list)
+    error: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+
+
+===== ./mia_agents/testing/mock_llm.py =====
+
+"""Cliente LLM programable para tests.
+
+Uso:
+    mock = MockLLMClient([
+        LLMResponse(content=None, tool_calls=[ToolCall("c1", "calculator", '{"left_operand":2,"right_operand":2,"operator":"+"}')]),
+        LLMResponse(content="La respuesta es 4."),
+    ])
+    agent = MyAgent(llm_client=mock)
+    result = agent.run("...")
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from mia_agents.types import LLMResponse, ToolSchema
+
+ToolSpecInput = ToolSchema | dict[str, Any]
+
+
+class MockLLMClient:
+    """Devuelve `LLMResponse`s prefabricados en orden; lanza excepciones programadas si así se indica.
+
+    Cada llamada a `chat()` registra los argumentos recibidos en `self.calls`,
+    para que los tests puedan validar lo que el agente envió al modelo.
+    """
+
+    def __init__(self, responses: list[LLMResponse | Exception]) -> None:
+        self._responses: list[LLMResponse | Exception] = list(responses)
+        self.calls: list[dict[str, Any]] = []
+
+    def chat(
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[ToolSpecInput] | None = None,
+        system: str | None = None,
+        temperature: float = 0.2,
+        response_format: dict[str, Any] | None = None,
+    ) -> LLMResponse:
+        self.calls.append(
+            {
+                "messages": messages,
+                "tools": tools,
+                "system": system,
+                "temperature": temperature,
+                "response_format": response_format,
+            }
+        )
+        if not self._responses:
+            raise RuntimeError(
+                "MockLLMClient se quedó sin respuestas programadas. "
+                f"chat() fue llamado {len(self.calls)} veces."
+            )
+        item = self._responses.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    @property
+    def call_count(self) -> int:
+        return len(self.calls)
+
+
+===== ./mia_agents/testing/tools.py =====
+
+"""Herramientas prefabricadas que utiliza la suite de conformidad."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Annotated, Any
+
+from pydantic import Field
+
+from mia_agents.types import ToolSchema
+
+
+@dataclass
+class RecordingTool:
+    """Herramienta de test que registra cada invocación y devuelve un valor fijo."""
+
+    return_value: str = "ok"
+    calls: list[dict[str, Any]] = field(default_factory=list)
+
+    def __call__(self, **kwargs: Any) -> str:
+        self.calls.append(kwargs)
+        return self.return_value
+
+
+def make_recording_tool(
+    name: str = "record",
+    description: str = "Herramienta de test: registra sus entradas y devuelve un valor fijo.",
+    return_value: str = "ok",
+) -> tuple[RecordingTool, ToolSchema]:
+    tool = RecordingTool(return_value=return_value)
+
+    def record(
+        text: Annotated[
+            str,
+            Field(description="Texto arbitrario para registrar."),
+        ],
+    ) -> str:
+        return tool(text=text)
+
+    schema = ToolSchema.from_callable(
+        record,
+        name=name,
+        description=description,
+    )
+    return tool, schema
+
+
+===== ./mia_agents/testing/__init__.py =====
+
+"""Utilidades de test para la suite de conformidad.
+
+Los estudiantes también pueden usarlas en sus propios tests.
+"""
+
+from mia_agents.testing.mock_llm import MockLLMClient
+from mia_agents.testing.tools import RecordingTool, make_recording_tool
+
+__all__ = ["MockLLMClient", "RecordingTool", "make_recording_tool"]
+
+
+===== ./student_framework/agent.py =====
+
+"""Implementación de su agente.
+
+Completen `register_tool` y `run` para el Milestone 1.
+En el Milestone 2 amplíen `MyAgent` para que sea estatal y respete
+`max_history_messages`.
+
+Los tests de conformidad en `tests/conformance/test_m1.py` y
+`test_m2.py` describen con precisión qué comportamientos deben funcionar
+— léanlos antes de empezar.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any, Callable
+
+from mia_agents.protocols import LLMClient
+from mia_agents.types import AgentResult, AgentStep, ToolSchema
+
+
+class MyAgent:
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        system_prompt: str = "Eres un asistente útil.",
+        max_iterations: int = 10,
+        max_history_messages: int = 50,
+    ) -> None:
+        """Inicializa el agente.
+
+        Parameters
+        ----------
+        llm_client : LLMClient
+            Cliente LLM (real o mock) que el agente utilizará.
+        system_prompt : str
+            System prompt por defecto.
+        max_iterations : int
+            Tope de iteraciones del bucle del agente (M1).
+        max_history_messages : int
+            Número máximo de mensajes que se permiten en la lista
+            `messages` enviada al LLM en una única llamada. En M1 este
+            valor es ignorado; el agente sólo necesita aceptarlo en su
+            constructor. En M2 deben respetarlo: la longitud de la
+            lista de mensajes pasada a `self._llm.chat(...)` no puede
+            superar este número en ninguna llamada, sin importar la
+            estrategia de memoria que elijan.
+        """
+        self._llm = llm_client
+        self._system = system_prompt
+        self._max_iterations = max_iterations
+        self._max_history_messages = max_history_messages
+        self._tools: dict[str, Callable[..., str]] = {}
+        self._schemas: dict[str, ToolSchema] = {}
+        self._conversation_history: list[dict[str, Any]] = []
+
+    def register_tool(
+        self,
+        tool: Callable[..., str],
+        schema: ToolSchema,
+    ) -> None:
+        """Registra una herramienta callable junto a su esquema.
+
+        El esquema suele obtenerse con `ToolSchema.from_callable(fn)`. En
+        `run`, pasá `tools=list(self._schemas.values())`; el cliente LLM
+        aplica `to_llm_spec()` al llamar al proveedor.
+
+        El callable se invoca con kwargs que coinciden con la firma.
+        Debe devolver una cadena.
+        """
+        self._tools[schema.name] = tool
+        self._schemas[schema.name] = schema
+
+    def run(self, user_message: str) -> AgentResult:
+        """Ejecuta el bucle del agente hasta una respuesta final o hasta max_iterations.
+
+        Comportamiento esperado (consulta tests/conformance/test_m1.py
+        para el contrato exacto del M1):
+          - Llama a `self._llm.chat(..., tools=list(self._schemas.values()))`.
+          - Si la respuesta contiene tool_calls, ejecuta cada uno y vuelca
+            los resultados en la siguiente llamada al chat.
+          - Si la respuesta solo contiene texto (sin `tool_calls`),
+            devuélvelo en `AgentResult.answer`. En M1 no uses la tool
+            sintética `final_result`; ese patrón es de M2 (ver README y
+            ENUNCIADO_M2.md).
+          - Limita el bucle a `self._max_iterations` y termina de forma
+            limpia cuando se alcance.
+          - Registra cada invocación de herramienta como un `AgentStep`
+            dentro de `result.steps`.
+
+        En el M2, además, llamadas sucesivas sobre la misma instancia
+        deben continuar la conversación, y la longitud de la lista de
+        mensajes enviada al LLM no debe superar `self._max_history_messages`.
+        Acumula los tokens de entrada/salida reportados por los
+        `LLMResponse` y exponlos en `AgentResult.input_tokens` /
+        `AgentResult.output_tokens`.
+        """
+        self._conversation_history.append({"role": "user", "content": user_message})
+
+        steps: list[AgentStep] = []
+        total_input_tokens = 0
+        total_output_tokens = 0
+
+        for _ in range(self._max_iterations):
+            messages = self._apply_sliding_window()
+
+            response = self._llm.chat(
+                messages=messages,
+                tools=list(self._schemas.values()),
+                system=self._system,
+            )
+
+            if response.input_tokens is not None:
+                total_input_tokens += response.input_tokens
+            if response.output_tokens is not None:
+                total_output_tokens += response.output_tokens
+
+            if not response.tool_calls:
+                self._conversation_history.append({"role": "assistant", "content": response.content})
+                return AgentResult(
+                    answer=response.content or "",
+                    steps=steps,
+                    input_tokens=total_input_tokens if total_input_tokens > 0 else None,
+                    output_tokens=total_output_tokens if total_output_tokens > 0 else None,
+                )
+
+            self._conversation_history.append({"role": "assistant", "content": response.content})
+
+            for tool_call in response.tool_calls:
+                try:
+                    arguments = json.loads(tool_call.arguments)
+                except (json.JSONDecodeError, TypeError):
+                    arguments = {}
+
+                tool_name = tool_call.name
+                tool_func = self._tools.get(tool_name)
+
+                if tool_func is None:
+                    error_msg = f"Herramienta desconocida: {tool_name}"
+                    tool_output = error_msg
+                    step_error = error_msg
+                else:
+                    try:
+                        tool_output = tool_func(**arguments)
+                        step_error = None
+                    except Exception as e:
+                        tool_output = f"Error al ejecutar {tool_name}: {str(e)}"
+                        step_error = str(e)
+
+                self._conversation_history.append({
+                    "role": "tool",
+                    "content": tool_output,
+                    "tool_use_id": tool_call.id,
+                })
+
+                steps.append(AgentStep(
+                    tool_name=tool_name,
+                    tool_input=tool_call.arguments,
+                    tool_output=tool_output,
+                    error=step_error,
+                ))
+
+        return AgentResult(
+            answer="Máximo de iteraciones alcanzado.",
+            steps=steps,
+            input_tokens=total_input_tokens if total_input_tokens > 0 else None,
+            output_tokens=total_output_tokens if total_output_tokens > 0 else None,
+        )
+
+    def _apply_sliding_window(self) -> list[dict[str, Any]]:
+        """Aplica sliding window al historial conversacional.
+
+        Estrategia: mantener último user message (recencia) y descartar
+        mensajes antiguos si supera max_history_messages. System prompt
+        no cuenta en el presupuesto.
+        """
+        if len(self._conversation_history) <= self._max_history_messages:
+            return list(self._conversation_history)
+
+        latest_user_idx = -1
+        for i in range(len(self._conversation_history) - 1, -1, -1):
+            if self._conversation_history[i]["role"] == "user":
+                latest_user_idx = i
+                break
+
+        if latest_user_idx == -1:
+            return list(self._conversation_history[-self._max_history_messages:])
+
+        if latest_user_idx < len(self._conversation_history) - self._max_history_messages:
+            return self._conversation_history[latest_user_idx:]
+
+        return self._conversation_history[-self._max_history_messages:]
+
+    def structured_call(
+        self,
+        prompt: str,
+        schema: Any,
+        max_repair_attempts: int = 2,
+    ) -> Any:
+        """Pide al LLM una respuesta validada contra `schema` (M2).
+
+        Obligatorio: herramienta sintética `final_result` (ver
+        `mia_agents.final_result_tool_schema` / `FINAL_RESULT_TOOL_NAME`).
+        El agente ofrece esa tool al LLM, valida los `arguments` del
+        `tool_call` y reintenta con contexto de reparación si el modelo
+        responde con texto libre o con argumentos inválidos.
+
+        Implementa esto en el M2:
+          - Pasa `tools=[final_result_tool_schema(schema)]` en cada
+            llamada a `chat` dentro de este método.
+          - Termina solo cuando llega un `tool_call` a `final_result`
+            cuyos argumentos validan con `schema.model_validate(...)`.
+          - Reintenta hasta `max_repair_attempts` incluyendo el fallo en
+            los mensajes (respuesta previa, mensaje `tool`, o user de
+            reparación).
+          - Si tras los reintentos sigue fallando, levanta una excepción
+            limpia (no devuelvas valores parciales ni `None` sin avisar).
+
+        El M1 deja esto como stub; los tests de M2 verifican el contrato.
+        """
+        from mia_agents.tool_schema import final_result_tool_schema, FINAL_RESULT_TOOL_NAME
+
+        final_result_tool = final_result_tool_schema(schema)
+        messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
+
+        for attempt in range(max_repair_attempts + 1):
+            response = self._llm.chat(
+                messages=messages,
+                tools=[final_result_tool],
+                system=self._system,
+            )
+
+            if not response.tool_calls:
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({
+                    "role": "tool",
+                    "content": "No invocaste la herramienta final_result. Debes invocar la herramienta para terminar.",
+                    "tool_use_id": "repair",
+                })
+                if attempt < max_repair_attempts:
+                    continue
+                else:
+                    raise ValueError("El LLM no invocó final_result tras reintentos.")
+
+            tool_call = response.tool_calls[0]
+            if tool_call.name != FINAL_RESULT_TOOL_NAME:
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({
+                    "role": "tool",
+                    "content": f"Debes invocar solo final_result, no {tool_call.name}.",
+                    "tool_use_id": tool_call.id,
+                })
+                if attempt < max_repair_attempts:
+                    continue
+                else:
+                    raise ValueError(f"El LLM invocó {tool_call.name} en lugar de final_result.")
+
+            try:
+                arguments = json.loads(tool_call.arguments)
+            except (json.JSONDecodeError, TypeError) as e:
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({
+                    "role": "tool",
+                    "content": f"Los argumentos no son JSON válido: {str(e)}",
+                    "tool_use_id": tool_call.id,
+                })
+                if attempt < max_repair_attempts:
+                    continue
+                else:
+                    raise
+
+            try:
+                parsed = schema.model_validate(arguments)
+                return parsed
+            except Exception as e:
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({
+                    "role": "tool",
+                    "content": f"Validación fallida: {str(e)}. Reintenta con argumentos válidos.",
+                    "tool_use_id": tool_call.id,
+                })
+                if attempt < max_repair_attempts:
+                    continue
+                else:
+                    raise
+
+
+===== ./student_framework/__init__.py =====
+
+"""Paquete propio del grupo.
+
+Implementen el agente en `agent.py` y registren sus herramientas a
+continuación, en `build_agent`. Tanto el runner de la CLI como los tests
+de conformidad llaman a `build_agent`, por lo que esta es la única puerta
+de entrada pública de su entrega.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from mia_agents.llm_client import LLMClient
+from mia_agents.protocols import Agent
+
+from .agent import MyAgent
+
+
+def build_agent(config: dict[str, Any] | None = None) -> Agent:
+    """Construye y configura su agente.
+
+    `config` es opcional. Si se proporciona `config["llm_client"]`, el
+    agente debe usarlo (así es como los tests de conformidad inyectan un
+    cliente mock). Si no, se construye a partir del entorno.
+
+    TODO (M1): instancien su agente y llamen a `agent.register_tool(...)`
+    por cada una de sus herramientas antes de devolverlo.
+    """
+
+    config = config or {} #NO CAMBIAR
+    llm = config.get("llm_client") or LLMClient.from_env() #NO CAMBIAR
+    kwargs: dict[str, Any] = {"llm_client": llm} #NO CAMBIAR
+    
+    if "max_history_messages" in config:
+        kwargs["max_history_messages"] = config["max_history_messages"]
+
+    agent = MyAgent(**kwargs)
+
+    from student_framework.tools.calculator import calculator, calculator_schema
+    from mia_agents.file_reader import file_reader, file_reader_schema
+    from student_framework.tools.word_counter import word_counter, word_counter_schema
+
+    agent.register_tool(calculator, calculator_schema)
+    agent.register_tool(file_reader, file_reader_schema)
+    agent.register_tool(word_counter, word_counter_schema)
+
+    return agent
+
+
+===== ./student_framework/tools/example.py =====
+
+"""Herramienta de ejemplo que ilustra el patrón de register_tool.
+
+Este archivo es solo ilustrativo — NO cuenta como una de sus tres
+herramientas obligatorias del M1 (calculadora, lector de archivos,
+herramienta libre). Pueden borrarlo cuando las tres estén listas.
+
+El patrón:
+  1. Escribe un callable con tipos en la firma y un docstring (va entero
+     a la descripción de la herramienta para el LLM).
+  2. `ToolSchema.from_callable(callable)` genera el JSON Schema.
+  3. Registra: `agent.register_tool(callable, schema)`.
+
+Para descripciones por parámetro usá `Annotated[..., Field(description="...")]`.
+"""
+
+from __future__ import annotations
+
+from typing import Annotated
+
+from pydantic import Field
+
+from mia_agents.types import ToolSchema
+
+
+def reverse_string(
+    text: Annotated[str, Field(description="El texto a invertir.")],
+) -> str:
+    """Invierte la cadena indicada y devuelve el resultado."""
+    return text[::-1]
+
+
+reverse_string_schema = ToolSchema.from_callable(reverse_string)
+
+
+===== ./student_framework/tools/calculator.py =====
+
+"""Herramienta de calculadora simple."""
+
+from __future__ import annotations
+
+from typing import Annotated, Literal
+
+from pydantic import Field
+
+from mia_agents.types import ToolSchema
+
+
+def calculator(
+    operand1: Annotated[float, Field(description="El primer operando numérico.")],
+    operator: Annotated[Literal["+", "-", "*", "%"], Field(description="El operador a aplicar: +, -, *, o %.")],
+    operand2: Annotated[float, Field(description="El segundo operando numérico.")],
+) -> str:
+    """Realiza una operación aritmética simple entre dos operandos.
+
+    Soporta suma (+), resta (-), multiplicación (*) y módulo (%).
+    """
+    try:
+        num1 = float(operand1)
+    except (ValueError, TypeError):
+        return f"Error: operand1 recibió {operand1!r}. Esperado número válido."
+
+    try:
+        num2 = float(operand2)
+    except (ValueError, TypeError):
+        return f"Error: operand2 recibió {operand2!r}. Esperado número válido."
+
+    if operator not in ["+", "-", "*", "%"]:
+        return f"Error: operador '{operator}' no soportado. Permitidos: +, -, *, %"
+
+    try:
+        if operator == "+":
+            result = num1 + num2
+        elif operator == "-":
+            result = num1 - num2
+        elif operator == "*":
+            result = num1 * num2
+        elif operator == "%":
+            if num2 == 0:
+                return f"Error: módulo por cero no permitido (num1={num1}, num2={num2})."
+            result = num1 % num2
+        return str(result)
+    except ZeroDivisionError:
+        return f"Error: división por cero no permitida (num1={num1}, num2={num2})."
+    except Exception as e:
+        return f"Error inesperado: {str(e)}"
+
+calculator_schema = ToolSchema.from_callable(calculator)
+
+
+===== ./student_framework/tools/__init__.py =====
+
+"""Añadan aquí sus tres herramientas obligatorias (M1).
+
+  1. **Calculadora simple** — dos operandos numéricos y operador +, -, *, %.
+  2. **Lector de archivos** — ruta → contenido de archivo de texto.
+  3. **Herramienta libre** — la que quieran.
+
+Cada herramienta debe ser un callable que acepte argumentos por palabra clave
+correspondientes a los parámetros de su ToolSchema y devuelva una cadena.
+Regístrenlas en `student_framework/__init__.py:build_agent`.
+
+Mira `example.py`: callable tipado + `ToolSchema.from_callable(...)`.
+Detalle completo en `ENUNCIADO_M1.md`.
+"""
+
+
+===== ./student_framework/tools/word_counter.py =====
+
+"""Herramienta para contar palabras en un texto."""
+
+from __future__ import annotations
+
+from typing import Annotated
+
+from pydantic import Field
+
+from mia_agents.types import ToolSchema
+
+
+def word_counter(
+    text: Annotated[str, Field(description="El texto en el cual contar las palabras.")],
+) -> str:
+    """Cuenta el número de palabras en un texto dado.
+
+    Divide el texto por espacios en blanco.
+    """
+    words = text.split()
+    word_count = len(words)
+    return f"El texto contiene {word_count} palabra(s)."
+
+
+word_counter_schema = ToolSchema.from_callable(word_counter)

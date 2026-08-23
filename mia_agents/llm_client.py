@@ -177,7 +177,7 @@ class OllamaProvider(_BaseLLMProvider):
         self._client = ollama.Client(
             host=host or os.environ.get("OLLAMA_HOST") or "http://localhost:11434"
         )
-        self._model = model or os.environ.get("OLLAMA_MODEL", "llama3.1")
+        self._model = model or os.environ.get("OLLAMA_MODEL", "llama3.2:latest")
         self._num_ctx = num_ctx
         self._default_format = default_format
 

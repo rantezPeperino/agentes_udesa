@@ -11,6 +11,7 @@ mia_agents/types.py
 student_framework/__init__.py
 student_framework/agent.py
 tests/test_bedrock_provider.py
+tests/test_history_integrity.py
 tests/test_ollama_provider.py
 tests/test_tool_schema.py
 tp_mia_agentes_2026.egg-info/PKG-INFO

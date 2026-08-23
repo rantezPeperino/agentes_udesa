@@ -30,18 +30,35 @@ def build_agent(config: dict[str, Any] | None = None) -> Agent:
     config = config or {} #NO CAMBIAR
     llm = config.get("llm_client") or LLMClient.from_env() #NO CAMBIAR
     kwargs: dict[str, Any] = {"llm_client": llm} #NO CAMBIAR
-    
+
     if "max_history_messages" in config:
         kwargs["max_history_messages"] = config["max_history_messages"]
+    if "max_iterations" in config:
+        kwargs["max_iterations"] = config["max_iterations"]
+    if "system_prompt" in config:
+        kwargs["system_prompt"] = config["system_prompt"]
 
     agent = MyAgent(**kwargs)
 
-    from student_framework.tools.calculator import calculator, calculator_schema
-    from mia_agents.file_reader import file_reader, file_reader_schema
-    from student_framework.tools.word_counter import word_counter, word_counter_schema
+    # Determinar qué herramientas registrar.
+    # Prioridad: config["tools"] > config["world"] > herramientas por defecto.
+    if "tools" in config:
+        # Usar herramientas inyectadas (esperadas como iterable de pares (callable, ToolSchema)).
+        for tool_fn, tool_schema in config["tools"]:
+            agent.register_tool(tool_fn, tool_schema)
+    elif "world" in config:
+        # Derivar herramientas del mundo simulado.
+        from mia_world import make_world_tools
+        for tool_fn, tool_schema in make_world_tools(config["world"]):
+            agent.register_tool(tool_fn, tool_schema)
+    else:
+        # Comportamiento por defecto: herramientas de M1.
+        from student_framework.tools.calculator import calculator, calculator_schema
+        from mia_agents.file_reader import file_reader, file_reader_schema
+        from student_framework.tools.word_counter import word_counter, word_counter_schema
 
-    agent.register_tool(calculator, calculator_schema)
-    agent.register_tool(file_reader, file_reader_schema)
-    agent.register_tool(word_counter, word_counter_schema)
+        agent.register_tool(calculator, calculator_schema)
+        agent.register_tool(file_reader, file_reader_schema)
+        agent.register_tool(word_counter, word_counter_schema)
 
     return agent
