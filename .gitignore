@@ -15,3 +15,5 @@ CLAUDE.md
 *~
 .idea/
 *.iml
+fileSearch.py
+.env.env

@@ -52,6 +52,8 @@ class MyAgent:
         self._tools: dict[str, Callable[..., str]] = {}
         self._schemas: dict[str, ToolSchema] = {}
         self._conversation_history: list[dict[str, Any]] = []
+        self._last_window_stats: dict[str, Any] = {}
+        self._window_stats_history: list[dict[str, Any]] = []
 
     def register_tool(
         self,
@@ -173,72 +175,108 @@ class MyAgent:
         return AgentResult(
             answer="Máximo de iteraciones alcanzado.",
             steps=steps,
+            error="max_iterations_reached",
             input_tokens=total_input_tokens if total_input_tokens > 0 else None,
             output_tokens=total_output_tokens if total_output_tokens > 0 else None,
         )
 
     def _apply_sliding_window(self) -> list[dict[str, Any]]:
-        """Aplica sliding window respetando límites y atomicidad de bloques.
+        """Aplica ventana deslizante con recorte consciente de bloques atómicos.
 
-        Agrupa mensajes en bloques atómicos:
-        - Un `assistant` con `tool_calls` + todos los `tool` consecutivos
-          = UN bloque (indivisible).
-        - Cualquier otro mensaje = bloque de un elemento.
+        Estrategia:
+        1. Agrupa mensajes en bloques indivisibles: un `assistant` con
+           `tool_calls` + todos sus `tool` consecutivos = 1 bloque. Otros
+           mensajes forman bloques de 1 elemento.
+        2. Selecciona bloques de atrás hacia adelante acumulando mientras
+           el total no supere `max_history_messages`.
+        3. Aplana en orden original y sanitiza (nunca empieza con `tool`).
 
-        Recorre bloques de atrás hacia adelante, acumulando mientras el
-        total no supere `max_history_messages`. El resultado nunca empieza
-        con `role == "tool"` y mantiene integridad assistant+tool.
+        Invariantes garantizadas:
+        - len(resultado) <= max_history_messages
+        - resultado nunca empieza con rol "tool"
+        - cada `tool` está emparejado con su `assistant` con `tool_calls`
+        - si un `assistant` con `tool_calls` está presente, TODOS sus `tool`
+          consecutivos también lo están
+        - resultado es subsecuencia contigua del historial original
+        - si historial entra en presupuesto, se devuelve copia íntegra
+
+        Caso degenerado: si el último bloque por sí solo supera el presupuesto,
+        se busca el último mensaje `user` disponible. Esto degrada el contexto
+        pero permite que el agente continúe (vs. abortar). Se registra en
+        `_last_window_stats["degraded"]`.
         """
-        if len(self._conversation_history) <= self._max_history_messages:
-            return list(self._conversation_history)
+        H = self._conversation_history
+        m = self._max_history_messages
 
-        # Paso 1: Agrupar en bloques atómicos.
+        # Caso trivial: todo entra.
+        if len(H) <= m:
+            self._last_window_stats = {
+                "total_blocks": len(H),
+                "sent_blocks": 1,
+                "sent_messages": len(H),
+                "dropped_messages": 0,
+                "degraded": False,
+            }
+            self._window_stats_history.append(self._last_window_stats)
+            return list(H)
+
+        # Fase 1: Agrupar en bloques atómicos.
         blocks: list[list[dict[str, Any]]] = []
         i = 0
-        while i < len(self._conversation_history):
-            msg = self._conversation_history[i]
+        while i < len(H):
+            msg = H[i]
             if msg["role"] == "assistant" and msg.get("tool_calls"):
                 # Bloque: este assistant + todos los tool consecutivos
                 block = [msg]
                 i += 1
-                while i < len(self._conversation_history):
-                    if self._conversation_history[i]["role"] == "tool":
-                        block.append(self._conversation_history[i])
-                        i += 1
-                    else:
-                        break
+                while i < len(H) and H[i]["role"] == "tool":
+                    block.append(H[i])
+                    i += 1
                 blocks.append(block)
             else:
                 # Bloque de un elemento
                 blocks.append([msg])
                 i += 1
 
-        # Paso 2: Recorrer de atrás hacia adelante, acumulando bloques.
-        total = 0
+        # Fase 2: Seleccionar bloques de atrás hacia adelante.
         selected_blocks: list[list[dict[str, Any]]] = []
+        total = 0
         for block in reversed(blocks):
             block_size = len(block)
-            if total + block_size <= self._max_history_messages:
-                selected_blocks.append(block)
+            if total + block_size <= m:
+                selected_blocks.insert(0, block)
                 total += block_size
             else:
-                # El bloque no cabe entero. Si es la primera iteración
-                # (último bloque al recorrer), podría ser un usuario más
-                # reciente; de todos modos, detenerse aquí.
+                # El bloque no cabe. BREAK para garantizar contiguidad.
                 break
 
-        # Paso 3: Aplanar en orden original y garantizar no empezar con tool.
-        selected_blocks.reverse()
-        result = []
-        for block in selected_blocks:
-            result.extend(block)
+        # Fase 3: Aplanar y sanear.
+        R = [msg for block in selected_blocks for msg in block]
+        while R and R[0]["role"] == "tool":
+            R.pop(0)
 
-        # Asegurar que el resultado nunca empiece con un mensaje "tool"
-        # (no debería suceder con el algoritmo, pero sanear por seguridad).
-        while result and result[0]["role"] == "tool":
-            result.pop(0)
+        # Caso degenerado: si R quedó vacío, buscar el último `user`.
+        degraded = False
+        if not R:
+            for msg in reversed(H):
+                if msg["role"] == "user" and not msg.get("tool_calls"):
+                    R = [msg]
+                    degraded = True
+                    break
+            # Si tampoco hay `user`, R queda [] (respeta presupuesto, pero
+            # mandarle a Bedrock también es error. El agente degradará aquí).
 
-        return result
+        # Registrar estadísticas.
+        self._last_window_stats = {
+            "total_blocks": len(blocks),
+            "sent_blocks": len(selected_blocks),
+            "sent_messages": len(R),
+            "dropped_messages": len(H) - len(R),
+            "degraded": degraded,
+        }
+        self._window_stats_history.append(self._last_window_stats)
+
+        return R
 
     def structured_call(
         self,
