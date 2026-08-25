@@ -2,40 +2,40 @@
 
 ## Resumen Ejecutivo
 
-- **Tasa de Éxito**: 22.5%
-- **Eficiencia (pasos)**: 0.57x óptimo (casos ganados)
-- **Pass@3**: 0.0%
-- **Latencia media**: 7.25s (p95: 27.20s)
-- **Tokens (in/out)**: 20762 / 661
+- **Tasa de Éxito**: 37.5%
+- **Eficiencia (pasos)**: 0.56x óptimo (casos ganados)
+- **Pass@3**: 87.5%
+- **Latencia media**: 14.19s (p95: 29.44s)
+- **Tokens (in/out)**: 25081 / 719
 
 ## Resultados por Dificultad
 
-### EASY (15 casos)
-- Éxito: 46.7%
-- Pasos promedio: 2.1
+### EASY (14 casos)
+- Éxito: 71.4%
+- Pasos promedio: 3.1
 
-### EXTREME (45 casos)
-- Éxito: 4.4%
-- Pasos promedio: 1.4
+### EXTREME (42 casos)
+- Éxito: 14.3%
+- Pasos promedio: 4.4
 
-### HARD (30 casos)
-- Éxito: 23.3%
-- Pasos promedio: 5.4
+### HARD (28 casos)
+- Éxito: 32.1%
+- Pasos promedio: 7.5
 
-### MEDIUM (30 casos)
-- Éxito: 36.7%
-- Pasos promedio: 5.3
+### MEDIUM (28 casos)
+- Éxito: 60.7%
+- Pasos promedio: 9.4
 
 ## Categorías de Error Detectadas
 
-- **UNCLASSIFIED**: 88 (UNCLASSIFIED)
-- **REDUNDANT_ACTION**: 22 (Acción repetida innecesariamente)
-- **PRECONDITION_VIOLATED**: 6 (Precondición no cumplida (no visible/llevable))
-- **PREMATURE_STOP**: 5 (Terminó sin resolver (rendición))
-- **NAVIGATION_BLOCKED**: 3 (Navegación bloqueada o sin salida)
-- **TOOL_ARG_INVALID**: 2 (Argumento inválido (objeto no existe))
+- **UNCLASSIFIED**: 62 (UNCLASSIFIED)
+- **REDUNDANT_ACTION**: 35 (Acción repetida innecesariamente)
+- **PRECONDITION_VIOLATED**: 9 (Precondición no cumplida (no visible/llevable))
+- **PREMATURE_STOP**: 8 (Terminó sin resolver (rendición))
+- **NAVIGATION_BLOCKED**: 7 (Navegación bloqueada o sin salida)
+- **TOOL_ARG_INVALID**: 3 (Argumento inválido (objeto no existe))
 
 ## Notas
 - Generado desde resultados JSONL
-- Total de casos: 120
-- Casos resueltos: 27
+- Total de casos: 112
+- Casos resueltos: 42
